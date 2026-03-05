@@ -31,6 +31,11 @@ const DEW_FETCH_TIMEOUT_NEWS_MS = Math.max(1500, Math.min(30000, Number(process.
 const DEW_FETCH_TIMEOUT_GMAIL_MS = Math.max(1500, Math.min(30000, Number(process.env.DEW_FETCH_TIMEOUT_GMAIL_MS ?? '7000')));
 const DEW_FETCH_TIMEOUT_TIMELINE_MS = Math.max(2000, Math.min(45000, Number(process.env.DEW_FETCH_TIMEOUT_TIMELINE_MS ?? '15000')));
 const DEW_FETCH_TIMEOUT_POLYMARKET_MS = Math.max(2000, Math.min(30000, Number(process.env.DEW_FETCH_TIMEOUT_POLYMARKET_MS ?? '9000')));
+const DEW_POLY_ASYM_MAX = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_ASYM_MAX ?? '0.85')));
+const DEW_POLY_HORIZON_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POLY_HORIZON_DAYS ?? '90')));
+const DEW_POLY_SURGE_MIN = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN ?? '0.10')));
+const DEW_POLY_CROWD_PRICE = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_CROWD_PRICE ?? '0.85')));
+const DEW_POLY_CROWD_SURGE = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_CROWD_SURGE ?? '0.25')));
 
 function pickHeadlines(
   newsByCategory: Record<string, DewNews[] | undefined> | null | undefined
@@ -69,6 +74,13 @@ function toNum(v: unknown): number | undefined {
     if (Number.isFinite(n)) return n;
   }
   return undefined;
+}
+
+function daysTo(endDate?: string): number | null {
+  if (!endDate) return null;
+  const t = Date.parse(endDate);
+  if (!Number.isFinite(t)) return null;
+  return (t - Date.now()) / (1000 * 60 * 60 * 24);
 }
 
 function parseJsonArrayStrings(v: unknown): string[] {
@@ -126,7 +138,23 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number): Promise<P
       category: typeof r.category === 'string' ? r.category : undefined,
     });
   }
-  return out
+  // Strict inclusion: only markets passing all four filters are eligible for DEW analysis
+  const eligible = out.filter((m) => {
+    const maxSide = Math.max(m.yesProb ?? 0, m.noProb ?? 0);
+    const d = daysTo(m.endDate);
+    const v24 = m.volume24hr ?? 0;
+    const vTot = m.volume ?? 0;
+    const surgePct = vTot > 0 ? v24 / vTot : 0;
+
+    const asymmetricAlpha = maxSide <= DEW_POLY_ASYM_MAX;
+    const capitalEfficiency = d !== null && d <= DEW_POLY_HORIZON_DAYS;
+    const vpaSurge = surgePct >= DEW_POLY_SURGE_MIN;
+    const girardMimeticTrap = !(maxSide >= DEW_POLY_CROWD_PRICE && surgePct >= DEW_POLY_CROWD_SURGE);
+
+    return asymmetricAlpha && capitalEfficiency && vpaSurge && girardMimeticTrap;
+  });
+
+  return eligible
     .sort((a, b) => (b.volume24hr ?? b.volume ?? 0) - (a.volume24hr ?? a.volume ?? 0))
     .slice(0, limit);
 }
