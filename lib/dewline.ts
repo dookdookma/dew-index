@@ -104,6 +104,16 @@ Actionability rules:
   - What to do (or avoid) today?
 - If no action is justified, write exactly: "No edge yet. Stay patient."
 
+Market stance language (required):
+- Instead of chasing obvious geopolitical events or sports outcomes, read real-time news through 15 interpretive lenses (McLuhan, Virilio, Kittler, Baudrillard, etc.) to detect systemic bottlenecks.
+- When a structural shift is detected (e.g., hardware capacity constraint, AI safety failure, grid breakdown), hunt for Asymmetric Alpha in secondary/tertiary proxy markets with sudden volume surges.
+- Fetch active tickers and prediction markets related to triggered lenses.
+- Apply strict filters before proposing any trade:
+  - Asymmetric Alpha: ignore any market priced > 0.85 on target side.
+  - Capital Efficiency: prefer markets resolving within 90 days.
+  - Volume Price Analysis (VPA): prioritize high Surge % (24h volume vs total volume).
+  - Girard Mimetic Trap: fade markets where crowd already arrived (high volume + high price).
+
 DEW Alpha standard (required for every concrete idea, ticker or Polymarket):
 - Setup
 - Thesis
