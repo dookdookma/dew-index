@@ -11,9 +11,7 @@ COPY data ./data
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
-COPY start.sh ./start.sh
-RUN chmod +x ./start.sh
-
 EXPOSE 8080
-CMD ["./start.sh"]
+CMD ["sh", "-c", "mkdir -p /data/data && cp -rn /app/data/* /data/data/ || true && uvicorn server.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
+
 
