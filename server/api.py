@@ -118,3 +118,27 @@ def health_index() -> dict:
         "exists_meta": os.path.exists(os.path.join(data_dir, "index", "meta.jsonl")),
     }
     return checks
+
+@app.get("/health/stats")
+def health_stats() -> dict:
+    cfg = _paths()
+    data_dir = cfg.data_dir
+    chunks_path = os.path.join(data_dir, "chunks.jsonl")
+    meta_path = os.path.join(data_dir, "index", "meta.jsonl")
+
+    def _line_count(path: str) -> int:
+        if not os.path.exists(path):
+            return 0
+        c = 0
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for _ in f:
+                c += 1
+        return c
+
+    return {
+        "chunks_size": os.path.getsize(chunks_path) if os.path.exists(chunks_path) else 0,
+        "chunks_lines": _line_count(chunks_path),
+        "meta_size": os.path.getsize(meta_path) if os.path.exists(meta_path) else 0,
+        "meta_lines": _line_count(meta_path),
+        "engine_meta_len": len(_engine().meta) if os.path.exists(meta_path) else 0,
+    }
