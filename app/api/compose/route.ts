@@ -108,12 +108,34 @@ async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number): Promise<
   }
 }
 
-async function fetchPolymarketIdeas(limit: number, timeoutMs: number): Promise<PolymarketIdea[]> {
-  const url = `https://gamma-api.polymarket.com/markets?limit=${Math.max(10, Math.min(500, limit * 3))}&active=true&closed=false`;
+async function fetchPolymarketIdeas(limit: number, timeoutMs: number, signalTerms: string[] = []): Promise<PolymarketIdea[]> {
+  const upstreamLimit = Math.max(10, Math.min(500, limit * 3));
+  const url = `https://gamma-api.polymarket.com/markets?limit=${upstreamLimit}&active=true&closed=false`;
   const raw = await fetchJsonWithTimeout<unknown>(url, timeoutMs);
   if (!raw) return [];
   const arr = Array.isArray(raw) ? raw : [];
   const out: PolymarketIdea[] = [];
+
+  const expandMap: Record<string, string[]> = {
+    ai: ['artificial intelligence', 'model', 'llm', 'agent', 'alignment', 'safety'],
+    chip: ['semiconductor', 'gpu', 'foundry', 'compute', 'capacity'],
+    grid: ['power', 'blackout', 'electricity', 'utility', 'outage'],
+    rates: ['fed', 'fomc', 'rate', 'hike', 'cut', 'inflation'],
+    war: ['conflict', 'military', 'strike', 'geopolitics'],
+    energy: ['oil', 'gas', 'lng', 'nuclear', 'renewable'],
+  };
+
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const seeds = Array.from(new Set(signalTerms.map(norm).filter(Boolean)));
+  const expanded = new Set<string>(seeds);
+  for (const t of seeds) {
+    const parts = t.split(' ');
+    for (const part of parts) {
+      if (expandMap[part]) for (const ex of expandMap[part]) expanded.add(ex);
+    }
+  }
+  const terms = Array.from(expanded).slice(0, 60);
+
   for (const row of arr) {
     const r = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
     const question = typeof r.question === 'string' ? r.question.trim() : '';
@@ -125,6 +147,7 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number): Promise<P
     const noIdx = outcomes.indexOf('no');
     const yesProb = yesIdx >= 0 && Number.isFinite(prices[yesIdx]) ? prices[yesIdx] : undefined;
     const noProb = noIdx >= 0 && Number.isFinite(prices[noIdx]) ? prices[noIdx] : undefined;
+
     out.push({
       question,
       slug,
@@ -138,8 +161,13 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number): Promise<P
       category: typeof r.category === 'string' ? r.category : undefined,
     });
   }
-  // Strict inclusion: only markets passing all four filters are eligible for DEW analysis
-  const eligible = out.filter((m) => {
+
+  const scored = out.map((m) => {
+    const q = norm(m.question);
+    const overlap = terms.length
+      ? terms.reduce((acc, t) => acc + (q.includes(t) ? 1 : 0), 0) / Math.max(1, Math.min(10, terms.length))
+      : 0;
+
     const maxSide = Math.max(m.yesProb ?? 0, m.noProb ?? 0);
     const d = daysTo(m.endDate);
     const v24 = m.volume24hr ?? 0;
@@ -150,14 +178,29 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number): Promise<P
     const capitalEfficiency = d !== null && d <= DEW_POLY_HORIZON_DAYS;
     const vpaSurge = surgePct >= DEW_POLY_SURGE_MIN;
     const girardMimeticTrap = !(maxSide >= DEW_POLY_CROWD_PRICE && surgePct >= DEW_POLY_CROWD_SURGE);
+    const passAll = asymmetricAlpha && capitalEfficiency && vpaSurge && girardMimeticTrap;
 
-    return asymmetricAlpha && capitalEfficiency && vpaSurge && girardMimeticTrap;
+    const volumeNorm = Math.min(1, v24 / 1_000_000);
+    const timeFit = d === null ? 0 : Math.max(0, 1 - d / DEW_POLY_HORIZON_DAYS);
+    const crowdPenalty = (maxSide >= DEW_POLY_CROWD_PRICE && surgePct >= DEW_POLY_CROWD_SURGE) ? 1 : 0;
+
+    const relevanceScore = (0.45 * overlap) + (0.25 * surgePct) + (0.20 * timeFit) + (0.10 * volumeNorm) - (0.35 * crowdPenalty);
+
+    return { m, passAll, relevanceScore, v24, vTot };
   });
 
-  return eligible
-    .sort((a, b) => (b.volume24hr ?? b.volume ?? 0) - (a.volume24hr ?? a.volume ?? 0))
-    .slice(0, limit);
+  const eligible = scored.filter((x) => x.passAll);
+
+  // ranked retrieval with fallback to pure volume if relevance ties/empty term overlap
+  const hasAnyRelevance = eligible.some((x) => x.relevanceScore > 0);
+  const ranked = (hasAnyRelevance
+    ? eligible.sort((a, b) => (b.relevanceScore - a.relevanceScore) || ((b.v24 || b.vTot) - (a.v24 || a.vTot)))
+    : eligible.sort((a, b) => ((b.v24 || b.vTot) - (a.v24 || a.vTot)))
+  ).map((x) => x.m);
+
+  return ranked.slice(0, limit);
 }
+
 
 type Period = '1D'|'1W'|'1M'|'1Q'|'1Y';
 
@@ -363,11 +406,10 @@ const dayReturn = (sym: string, bars: Bar[]) => {
     tUrl.searchParams.set('include_x_cache', '1');
     tUrl.searchParams.set('x_cache_limit', String(Math.max(400, DEW_X_CACHE_LIMIT)));
 
-    const [nRes, gRes, tRes, pRes] = await Promise.allSettled([
+    const [nRes, gRes, tRes] = await Promise.allSettled([
       fetchJsonWithTimeout<{ newsByCategory?: Record<string, DewNews[]> }>(nUrl.toString(), DEW_FETCH_TIMEOUT_NEWS_MS),
       fetchJsonWithTimeout<{ newsByCategory?: Record<string, DewNews[]> }>(gUrl.toString(), DEW_FETCH_TIMEOUT_GMAIL_MS),
       fetchJsonWithTimeout<{ items?: TimelineNews[]; xCache?: TimelineNews[] }>(tUrl.toString(), DEW_FETCH_TIMEOUT_TIMELINE_MS),
-      fetchPolymarketIdeas(DEW_POLYMARKET_LIMIT, DEW_FETCH_TIMEOUT_POLYMARKET_MS),
     ]);
 
     const nb = (nRes.status === 'fulfilled' && nRes.value?.newsByCategory)
@@ -393,12 +435,17 @@ const dayReturn = (sym: string, bars: Bar[]) => {
       ? (tRes.value.xCache as TimelineNews[])
       : [];
     ingestStatus.timeline = tItems.length > 0 || tCache.length > 0;
-    dewPolymarket = (pRes.status === 'fulfilled' && Array.isArray(pRes.value))
-      ? (pRes.value as PolymarketIdea[])
-      : [];
-    ingestStatus.polymarket = dewPolymarket.length > 0;
     dewTimeline = pickTimeline(tItems, DEW_TIMELINE_LIMIT);
     dewXCache = pickTimeline(tCache, DEW_X_CACHE_LIMIT);
+
+    const signalTerms = [
+      ...dewNews.map((x) => x.title),
+      ...dewTimeline.map((x) => x.title),
+      ...dewXCache.map((x) => x.title),
+    ].slice(0, 40);
+
+    dewPolymarket = await fetchPolymarketIdeas(DEW_POLYMARKET_LIMIT, DEW_FETCH_TIMEOUT_POLYMARKET_MS, signalTerms);
+    ingestStatus.polymarket = dewPolymarket.length > 0;
   } catch {
     dewNews = [];
     dewTimeline = [];
