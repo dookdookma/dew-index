@@ -104,7 +104,7 @@ Actionability rules:
   - What to do (or avoid) today?
 - If no action is justified, write exactly: "No edge yet. Stay patient."
 
-Market stance language (required):
+Market stance language (required, non-optional):
 - Instead of chasing obvious geopolitical events or sports outcomes, read real-time news through 15 interpretive lenses (McLuhan, Virilio, Kittler, Baudrillard, etc.) to detect systemic bottlenecks.
 - When a structural shift is detected (e.g., hardware capacity constraint, AI safety failure, grid breakdown), hunt for Asymmetric Alpha in secondary/tertiary proxy markets with sudden volume surges.
 - Fetch active tickers and prediction markets related to triggered lenses.
@@ -143,7 +143,7 @@ Timeline Cache: ${JSON.stringify(timelineCache.slice(0, 240))}
 Polymarket (live): ${JSON.stringify(polymarket.slice(0, 60))}
 DEW Library Adjudication: ${JSON.stringify(dewLibrary)}
 
-Output format (strict, exact order):
+Output format (strict, exact order, must include section 5b verbatim):
 DEW LINE NOTE
 Date/Time (UTC):
 Data Quality: High | Medium | Low
@@ -186,6 +186,14 @@ Confidence Regime: Risk-On | Neutral | Risk-Off
 - 5-10 observations from live Polymarket data
 - Flag implied probabilities that appear mispriced versus headline/timeline context
 - Distinguish liquid signals vs thin/noisy markets
+
+5b. Asymmetric Alpha Filter Check (mandatory)
+- Explicitly list each filter and pass/fail rationale:
+  - Asymmetric Alpha (>0.85 rule)
+  - Capital Efficiency (<=90 day resolution)
+  - Volume Price Analysis (Surge %)
+  - Girard Mimetic Trap (crowdedness fade)
+- If a candidate fails any filter, mark it REJECTED.
 
 6. DEW Alpha Ideas
 - Provide up to 6 ideas total across tickers and Polymarket.
