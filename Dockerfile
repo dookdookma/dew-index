@@ -13,7 +13,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
 EXPOSE 8080
-CMD ["sh", "-c", "set -e; mkdir -p /data/data; cp -rn /app/data/* /data/data/ || true; python scripts/chunk_pages.py --data-dir /data/data --manifest-path /data/data/manifest.jsonl --force; python scripts/build_index.py --data-dir /data/data --force; uvicorn server.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "set -e; mkdir -p /data/data; rm -rf /data/data/pages /data/data/index /data/data/chunks.jsonl; cp -r /app/data/* /data/data/; python scripts/chunk_pages.py --data-dir /data/data --manifest-path /data/data/manifest.jsonl --force; python scripts/build_index.py --data-dir /data/data --force; uvicorn server.api:app --host 0.0.0.0 --port ${PORT:-8080}"]
+
 
 
 
