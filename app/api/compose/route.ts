@@ -168,11 +168,21 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number, signalTerm
       ? terms.reduce((acc, t) => acc + (q.includes(t) ? 1 : 0), 0) / Math.max(1, Math.min(10, terms.length))
       : 0;
 
-    const maxSide = Math.max(m.yesProb ?? 0, m.noProb ?? 0);
+    const hasYesNo = typeof m.yesProb === 'number' && Number.isFinite(m.yesProb) && typeof m.noProb === 'number' && Number.isFinite(m.noProb);
+    const hasV24 = typeof m.volume24hr === 'number' && Number.isFinite(m.volume24hr);
+    const hasVTot = typeof m.volume === 'number' && Number.isFinite(m.volume) && (m.volume as number) > 0;
     const d = daysTo(m.endDate);
+    const hasEnd = d !== null;
+
+    // hard completeness gate: no full data, no candidate
+    if (!(hasYesNo && hasV24 && hasVTot && hasEnd)) {
+      return { m, passAll: false, relevanceScore: -1, v24: m.volume24hr ?? 0, vTot: m.volume ?? 0 };
+    }
+
+    const maxSide = Math.max(m.yesProb ?? 0, m.noProb ?? 0);
     const v24 = m.volume24hr ?? 0;
     const vTot = m.volume ?? 0;
-    const surgePct = vTot > 0 ? v24 / vTot : 0;
+    const surgePct = v24 / vTot;
 
     const asymmetricAlpha = maxSide <= DEW_POLY_ASYM_MAX;
     const capitalEfficiency = d !== null && d <= DEW_POLY_HORIZON_DAYS;
