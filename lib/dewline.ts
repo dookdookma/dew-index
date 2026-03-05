@@ -140,7 +140,7 @@ Snapshot: ${JSON.stringify(snapshot)}
 Headlines: ${JSON.stringify(news.slice(0, 12))}
 Timeline (24h): ${JSON.stringify(timeline.slice(0, 25))}
 Timeline Cache: ${JSON.stringify(timelineCache.slice(0, 240))}
-Polymarket (live): ${JSON.stringify(polymarket.slice(0, 60))}
+Polymarket (live): ${JSON.stringify(polymarket.slice(0, 150))}
 DEW Library Adjudication: ${JSON.stringify(dewLibrary)}
 
 Output format (strict, exact order, must include section 5b verbatim):
