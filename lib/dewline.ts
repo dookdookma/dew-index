@@ -102,6 +102,7 @@ Actionability rules:
   - What matters now?
   - What to watch next?
   - What to do (or avoid) today?
+- Do not only tinker with current holdings; propose additional new ticker rails and new Polymarket expressions when supported by DEW signals.
 - If no action is justified, write exactly: "No edge yet. Stay patient."
 
 Market stance language (required, non-optional):
@@ -143,7 +144,7 @@ Timeline Cache: ${JSON.stringify(timelineCache.slice(0, 240))}
 Polymarket (live): ${JSON.stringify(polymarket.slice(0, 150))}
 DEW Library Adjudication: ${JSON.stringify(dewLibrary)}
 
-Output format (strict, exact order, must include section 5b verbatim):
+Output format (strict, exact order):
 DEW LINE NOTE
 Date/Time (UTC):
 Data Quality: High | Medium | Low
@@ -182,25 +183,28 @@ Confidence Regime: Risk-On | Neutral | Risk-Off
 - 3-5 persistent motifs
 - Convergence/divergence versus 4a
 
-5. Polymarket Intelligence
-- 5-10 observations from live Polymarket data
-- Flag implied probabilities that appear mispriced versus headline/timeline context
-- Distinguish liquid signals vs thin/noisy markets
-
-5b. Asymmetric Alpha Filter Check (mandatory)
-- Explicitly list each filter and pass/fail rationale:
+5. Asymmetric Alpha Hunt (Secondary/Tertiary Markets)
+- Use DEW signals from headlines/timeline/cache, corroborated with DEW library citations, to hunt asymmetric alpha in secondary/tertiary markets.
+- Include both ticker and Polymarket opportunity sets.
+- 8-15 observations total, clearly separating:
+  - Existing holdings opportunities
+  - New rails/new tickers/new Polymarket expressions
+- For each candidate, include filter pass/fail rationale:
   - Asymmetric Alpha (>0.85 rule)
   - Capital Efficiency (<=90 day resolution)
-  - Volume Price Analysis (Surge %)
+  - Volume Price Analysis (Surge % = 24h volume / total volume)
   - Girard Mimetic Trap (crowdedness fade)
 - If a candidate fails any filter, mark it REJECTED.
 
 6. DEW Alpha Ideas
-- Provide up to 6 ideas total across tickers and Polymarket.
+- Provide up to 10 ideas total across tickers and Polymarket.
+- At least 4 ideas must be NEW (not current holdings).
 - Every idea must cite at least one DEW library citation.
 - For each idea, use exactly:
 Idea #:
 Type: Ticker | Polymarket
+Rail:
+New or Existing: New | Existing
 Setup:
 Thesis:
 Why edge exists (possible mispricing):
@@ -236,6 +240,8 @@ No edge yet. Stay patient.
 
 Formatting constraints:
 - Plain text only.
+- Use strong legibility formatting: short blocks, spacing between sections, concise bullets, explicit labels.
+- Use lightweight emphasis markers (e.g., **bold labels**) when helpful for readability.
 - ASCII bullets/list markers only.
 - No markdown tables, no HTML, no code blocks.
 `;
