@@ -64,12 +64,14 @@ export async function dewLine({
     ...timeline.map((t) => t.title),
     ...timelineCache.map((t) => t.title),
     ...polymarket.map((p) => p.question),
-  ].filter(Boolean).slice(0, 40);
+  ].filter(Boolean).slice(0, 12);
 
   const dewLibrary = await libraryAdjudicateForTraderAgent({
     signals: signalCandidates,
-    maxSignals: 10,
-    maxCitationsPerSignal: 3,
+    topK: 4,
+    maxSignals: 3,
+    maxCitationsPerSignal: 1,
+    fetchChunkText: false,
   });
 
   const prompt = `

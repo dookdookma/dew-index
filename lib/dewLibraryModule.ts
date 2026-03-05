@@ -28,9 +28,12 @@ function cleanQuote(text: string, max = 220): string {
   return oneLine.length > max ? `${oneLine.slice(0, max - 3)}...` : oneLine;
 }
 
-async function getChunkQuote(chunkId: string): Promise<string> {
+async function getChunkQuote(chunkId: string, timeoutMs = 3500): Promise<string> {
   try {
-    const r = await fetch(`${DEW_LIB_URL}/chunk/${encodeURIComponent(chunkId)}`, { cache: 'no-store' });
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+    const r = await fetch(`${DEW_LIB_URL}/chunk/${encodeURIComponent(chunkId)}`, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(t);
     if (!r.ok) return '';
     const j = await r.json();
     return cleanQuote(j?.text || j?.chunk_text || j?.excerpt || '');
@@ -43,12 +46,14 @@ export async function libraryAdjudicateForTraderAgent({
   signals,
   topK = 8,
   maxSignals = 8,
-  maxCitationsPerSignal = 3,
+  maxCitationsPerSignal = 1,
+  fetchChunkText = false,
 }: {
   signals: string[];
   topK?: number;
   maxSignals?: number;
   maxCitationsPerSignal?: number;
+  fetchChunkText?: boolean;
 }): Promise<DewLibAdjudication> {
   const trimmed = signals.map((s) => (s || '').trim()).filter(Boolean).slice(0, maxSignals);
   if (!trimmed.length) {
@@ -60,12 +65,16 @@ export async function libraryAdjudicateForTraderAgent({
 
   for (const signal of trimmed) {
     try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 4500);
       const sr = await fetch(`${DEW_LIB_URL}/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: signal, top_k: topK }),
         cache: 'no-store',
+        signal: controller.signal,
       });
+      clearTimeout(t);
       if (!sr.ok) {
         errors.push(`search failed for signal: ${signal}`);
         continue;
@@ -80,7 +89,7 @@ export async function libraryAdjudicateForTraderAgent({
         if (!theorist || !chunkId || seen.has(theorist)) continue;
         seen.add(theorist);
 
-        const quote = (await getChunkQuote(chunkId)) || cleanQuote(String(h?.excerpt || ''));
+        const quote = fetchChunkText ? ((await getChunkQuote(chunkId)) || cleanQuote(String(h?.excerpt || ''))) : cleanQuote(String(h?.excerpt || ''));
         picked.push({
           theorist,
           title: String(h?.title || ''),
