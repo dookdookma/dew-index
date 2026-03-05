@@ -1,0 +1,11 @@
+{
+  "scan_run_id": "6c7ff7ad-24ab-4a24-9cee-d3e820b6625f",
+  "ts": "2026-03-05T11:31:36.995420+00:00",
+  "cadence": "morning",
+  "feed_set": null,
+  "report_path": "out/scans/20260305T113136Z_morning_scan.md",
+  "signals_evaluated": 13,
+  "signals_triggered": 0,
+  "triggered": [],
+  "recommendations": []
+}

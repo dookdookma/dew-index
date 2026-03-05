@@ -1,0 +1,82 @@
+{
+  "feed": {
+    "title": "Luke's Mixed Social Feed",
+    "description": "Merged RSS feed of selected Nitter/X accounts and Reddit subreddits with post text included.",
+    "site_url": "https://example.com",
+    "feed_url": "https://example.com/feed.xml",
+    "language": "en-us",
+    "max_items": 500,
+    "include_full_text": true
+  },
+  "reddit": {
+    "feeds": [
+      "https://www.reddit.com/r/OutOfTheLoop/.rss",
+      "https://www.reddit.com/r/MemeEconomy/.rss",
+      "https://www.reddit.com/r/KnowYourMeme/.rss",
+      "https://www.reddit.com/r/socialmedia/.rss",
+      "https://www.reddit.com/r/TheoryOfReddit/.rss",
+      "https://www.reddit.com/r/SubredditDrama/.rss",
+      "https://www.reddit.com/r/decadeology/.rss",
+      "https://www.reddit.com/r/Futurology/.rss",
+      "https://www.reddit.com/r/Semiconductors/.rss",
+      "https://www.reddit.com/r/hardware/.rss",
+      "https://www.reddit.com/r/datacenter/.rss",
+      "https://www.reddit.com/r/MachineLearning/.rss",
+      "https://www.reddit.com/r/artificial/.rss",
+      "https://www.reddit.com/r/nuclear/.rss",
+      "https://www.reddit.com/r/UraniumSqueeze/.rss",
+      "https://www.reddit.com/r/energy/.rss",
+      "https://www.reddit.com/r/RenewableEnergy/.rss",
+      "https://www.reddit.com/r/electricvehicles/.rss",
+      "https://www.reddit.com/r/Commodities/.rss",
+      "https://www.reddit.com/r/mining/.rss",
+      "https://www.reddit.com/r/geopolitics/.rss",
+      "https://www.reddit.com/r/netsec/.rss",
+      "https://www.reddit.com/r/cybersecurity/.rss",
+      "https://www.reddit.com/r/SelfDrivingCars/.rss",
+      "https://www.reddit.com/r/robotics/.rss",
+      "https://www.reddit.com/r/supplychain/.rss"
+    ]
+  },
+  "nitter": {
+    "feeds": [],
+    "accounts": [
+      "Logo_Daedalus",
+      "LapsusLima",
+      "newcriterion",
+      "deankissick",
+      "laserboat999",
+      "mcrumps",
+      "hasanthehun",
+      "AdamFriedland",
+      "NickJFuentes",
+      "asianometry",
+      "benthompson",
+      "jacobin",
+      "compactmag",
+      "semafor",
+      "PirateWires",
+      "SemiAnalysis_",
+      "dylan522p",
+      "bog_beef",
+      "Polymarket",
+      "Kalshi",
+      "tszzl",
+      "unusual_whales",
+      "starheal",
+      "alexandrascaggs",
+      "liz_franczak"
+    ]
+  },
+  "x": {
+    "accounts": [
+      "Polymarket",
+      "Kalshi",
+      "tszzl",
+      "unusual_whales",
+      "starheal",
+      "alexandrascaggs",
+      "liz_franczak"
+    ]
+  }
+}

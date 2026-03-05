@@ -1,0 +1,37 @@
+{
+  "name": "dew-index",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.35.4",
+    "@vercel/kv": "^3.0.0",
+    "cheerio": "^1.1.2",
+    "dayjs": "^1.11.18",
+    "googleapis": "^160.0.0",
+    "juice": "^11.0.3",
+    "next": "^15.5.12",
+    "openai": "^5.23.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "sanitize-html": "^2.17.0",
+    "swr": "^2.3.6"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.0",
+    "eslint": "^9.39.3",
+    "eslint-config-next": "^15.5.12",
+    "globals": "^17.3.0",
+    "lodash": "^4.17.23",
+    "typescript": "^5"
+  }
+}

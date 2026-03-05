@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dew-theory-library"
+version = "0.1.0"
+description = "Local citation-safe theory library with OCR, chunking, hybrid indexing, and FastAPI retrieval."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110.0",
+  "uvicorn>=0.27.0",
+  "pypdf>=4.2.0",
+  "numpy>=1.26.0",
+  "rank-bm25>=0.2.2",
+  "faiss-cpu>=1.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "reportlab>=4.0.0",
+]
+sentence = [
+  "sentence-transformers>=3.0.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["dewlib*", "server*"]

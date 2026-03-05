@@ -1,0 +1,144 @@
+# DEW Theory Library v1
+
+Local, citation-safe theory library for PDFs (including scanned files) with:
+- stable manifest IDs from source PDF bytes
+- page-bounded extraction and chunking
+- hybrid retrieval (BM25 + FAISS vector)
+- OCR health reporting
+- FastAPI retrieval endpoints with doc/page provenance
+
+## Requirements
+
+- Python 3.10+
+- `make` (optional, for Makefile targets)
+- Optional OCR system tools:
+  - [OCRmyPDF](https://ocrmypdf.readthedocs.io/)
+  - Tesseract OCR
+
+## Install
+
+```bash
+python -m venv .venv
+. .venv/Scripts/activate  # PowerShell: .venv\Scripts\Activate.ps1
+pip install -e .[dev]
+```
+
+Optional sentence-transformers backend:
+
+```bash
+pip install -e .[sentence]
+```
+
+## Expected Folder Layout
+
+`library/` is the default input root. If missing, scripts auto-fallback to `dew_theory_library/`.
+
+```text
+library/
+  McLuhan/
+    understanding_media.pdf
+  Debord/
+    society_of_the_spectacle.pdf
+```
+
+Generated outputs:
+
+```text
+data/
+  manifest.jsonl
+  ocr/
+  pages/
+  chunks.jsonl
+  index/
+    meta.jsonl
+    faiss.index
+    bm25_tokens.json
+    embedder.json
+  health_report.json
+```
+
+## Pipeline Commands
+
+Make targets:
+
+```bash
+make manifest
+make ocr
+make extract
+make chunk
+make index
+make health
+make serve
+make all
+```
+
+Equivalent one-shot pipeline:
+
+```bash
+python scripts/build_all.py --data-dir data
+```
+
+Notes:
+- `make all` runs: manifest -> OCR (if OCRmyPDF available) -> extract -> chunk -> index -> health
+- OCR step is incremental and skips fresh outputs
+- `doc_id` is always derived from the original source PDF bytes
+
+## API
+
+Start server:
+
+```bash
+make serve
+```
+
+Server listens on `http://127.0.0.1:8787`.
+
+### Search
+
+```bash
+curl -X POST http://127.0.0.1:8787/search \
+  -H "Content-Type: application/json" \
+  -d "{\"query\":\"medium is the message\", \"theorist\":\"McLuhan\", \"top_k\":5}"
+```
+
+### Chunk lookup
+
+```bash
+curl http://127.0.0.1:8787/chunk/<chunk_id>
+```
+
+### Doc metadata
+
+```bash
+curl http://127.0.0.1:8787/doc/<doc_id>
+```
+
+## Data Contracts Implemented
+
+- `data/manifest.jsonl`: one JSON line per doc with stable `doc_id`, source/OCR paths, theorist/title, source hash, mtime, and extract stats.
+- `data/pages/{doc_id}.json`: per-doc page-bounded text with page stats.
+- `data/chunks.jsonl`: page-bounded chunks (`chunk_id = "{doc_id}:{page}:{k}"`).
+- `data/index/*`: metadata aligned with vector rows, FAISS index, BM25 tokens, embedder metadata.
+- `data/health_report.json`: per-doc OCR health metrics and flags.
+
+## Health Report Flags
+
+Documents are flagged when:
+- `nonempty_pages / page_count < 0.60`, or
+- `avg_chars_per_page < 200`
+
+Strict mode:
+
+```bash
+python scripts/library_health.py --strict
+```
+
+Returns exit code `1` if any doc is flagged.
+
+## Tests (Offline)
+
+Tests generate small PDFs using `reportlab`, skip OCR, and use hash embeddings.
+
+```bash
+pytest -q
+```

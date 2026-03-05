@@ -1,0 +1,9 @@
+﻿node_modules
+.next
+.git
+*.log
+dew_theory_library/.venv
+dew_theory_library/data
+dew_theory_library/ingest
+dew_theory_library/.cache
+Timeline/social_feed_starter.zip

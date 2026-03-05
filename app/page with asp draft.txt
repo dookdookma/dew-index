@@ -1,0 +1,949 @@
+// app/page.tsx
+'use client';
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+type Period = '1D' | '1W' | '1M' | '1Q' | '1Y' | 'Custom';
+type Universe = 'auto' | 'positions' | 'positions+watchlist' | 'watchlist_only';
+
+type Row = { symbol: string; sleeve?: string; w: number; r1: number | null; rW: number | null; asOf?: string };
+type Snapshot = {
+window: { from: string; to: string };
+rows: Row[];
+index: { r1: number; rW: number };
+sleeves: { Core: { r1: number; rW: number }; Satellite: { r1: number; rW: number } };
+};
+type ComposeResp = {
+source?: string;
+diagnostics?: { requestedSymbols: number; withBars: number; withoutBars?: string[]; barsError?: string | null };
+snapshot?: Snapshot;
+dew?: string;
+};
+
+type NewsItem = { title:string; link:string; ts:number; pub?:string };
+type SortDir = 'asc' | 'desc';
+type SortKey = 'symbol' | 'r1' | 'rW' | 'w' | 'sleeve' | 'age';
+
+// helpers
+type Headline = { title: string; link: string; ts: number; pub?: string };
+
+const NEWS_ORDER = [
+  'DEW Line Theorists','Commentary','Tech','Business','Politics','International','NYC Metro',
+] as const;
+type CanonCat = typeof NEWS_ORDER[number];
+
+const NEWS_LIMIT: Record<CanonCat, number> = {
+  'DEW Line Theorists': 15, 'Commentary': 10, 'Tech': 5, 'Business': 5,
+  'Politics': 5, 'International': 5, 'NYC Metro': 5,
+};
+
+function normalizeCat(raw: string): CanonCat | null {
+  const s = (raw||'').toLowerCase();
+  if (s.includes('theorist')) return 'DEW Line Theorists';
+  if (s === 'gmail' || s.includes('commentary')) return 'Commentary';
+  if (s.startsWith('tech')) return 'Tech';
+  if (s.startsWith('business') || s==='markets') return 'Business';
+  if (s.startsWith('politic')) return 'Politics';
+  if (s.startsWith('international') || s==='world') return 'International';
+  if (s.includes('nyc') || s.includes('metro') || s.includes('new york')) return 'NYC Metro';
+  return null;
+}
+function makeBuckets(): Record<CanonCat, Headline[]> {
+  const o = {} as Record<CanonCat, Headline[]>;
+  NEWS_ORDER.forEach(c => { o[c] = []; });
+  return o;
+}
+const age = (ms: number|undefined) => {
+  if (!ms || ms<=0) return '—';
+  const m = Math.floor(ms/60000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m/60);
+  return `${h}h`;
+};
+
+// ===== mini hooks for ASP / Subway / Weather =====
+type ASPView = 'today'|'tomorrow'|'7day';
+type ASPItem = { date:string; status:string; notes?:string };
+type ASPState = { items: ASPItem[]; updated?: number; loading:boolean; error?:string };
+
+const ASP_URL = '/api/asp';
+const SUBWAY_URL = process.env.NEXT_PUBLIC_SUBWAY_API ?? '/api/subway';
+const WEATHER_URL = '/api/weather';
+
+function isRec(x: unknown): x is Record<string, unknown> {
+  return !!x && typeof x === 'object';
+}
+
+function useASP(view: ASPView): ASPState {
+  const [st,setSt] = React.useState<ASPState>({ items:[], loading:true });
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      setSt(s=>({ ...s, loading:true, error:undefined }));
+      try {
+        const u = new URL(ASP_URL, window.location.origin);
+        u.searchParams.set('view', view);
+        const r = await fetch(u.toString(), { cache:'no-store' });
+        const j = await r.json().catch(()=> ({}));
+        let items: ASPItem[] = [];
+        let updated: number|undefined = undefined;
+
+        if (isRec(j)) {
+          const arr = isRec(j.items) || Array.isArray(j.items) ? (j as any).items : [];
+          if (Array.isArray(arr)) {
+            items = arr.map((x: unknown) => {
+              const o = isRec(x) ? x : {};
+              return {
+                date: String((o.date ?? '')) || '',
+                status: String((o.status ?? '')) || '',
+                notes: typeof o.notes === 'string' ? o.notes : undefined,
+              };
+            });
+          }
+          const uRaw = (j.updated as number|undefined) ?? (typeof (j as any).updated === 'string' ? Date.parse((j as any).updated) : undefined);
+          if (typeof uRaw === 'number' && Number.isFinite(uRaw)) updated = uRaw;
+        }
+
+        if (alive) setSt({ items, updated, loading:false });
+      } catch (e:any) {
+        if (alive) setSt({ items:[], updated:undefined, loading:false, error: e?.message || 'error' });
+      }
+    })();
+    return () => { alive = false; };
+  }, [view]);
+  return st;
+}
+
+type SubwayAlert = { line:string; text:string; ts?:number };
+function useSubway(): { alerts: SubwayAlert[]; updated?: number; loading: boolean } {
+  const [st,setSt] = React.useState<{alerts:SubwayAlert[];updated?:number;loading:boolean}>({ alerts:[], loading:true });
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try{
+        const r = await fetch(SUBWAY_URL, { cache:'no-store' });
+        const j = await r.json().catch(()=> ({}));
+        let alerts: SubwayAlert[] = [];
+        let updated: number|undefined = undefined;
+        if (isRec(j)) {
+          const arr = Array.isArray((j as any).alerts) ? (j as any).alerts : [];
+          alerts = arr.map((a: unknown) => {
+            const o = isRec(a) ? a : {};
+            return {
+              line: String(o.line ?? ''),
+              text: String(o.text ?? ''),
+              ts: typeof o.ts === 'number' ? o.ts : (typeof (o as any).updated === 'string' ? Date.parse((o as any).updated) : undefined),
+            };
+          });
+          const u = (j as any).updated;
+          updated = typeof u === 'number' ? u : (typeof u === 'string' ? Date.parse(u) : undefined);
+        }
+        if (alive) setSt({ alerts, updated, loading:false });
+      }catch{ alive && setSt({ alerts:[], updated:undefined, loading:false }); }
+    })();
+    return ()=>{ alive=false; };
+  }, []);
+  return st;
+}
+
+type WeatherNow = { temp:number; desc:string; hi?:number; lo?:number; updated?:number };
+function useWeather(): { now?: WeatherNow; loading:boolean } {
+  const [st,setSt] = React.useState<{now?:WeatherNow;loading:boolean}>({ loading:true });
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try{
+        const r = await fetch(WEATHER_URL, { cache:'no-store' });
+        const j = await r.json().catch(()=> ({}));
+        let now: WeatherNow|undefined = undefined;
+        if (isRec(j)) {
+          const main = isRec((j as any).now) ? (j as any).now : j;
+          const t  = Number((main as any).temp);
+          const hi = Number((main as any).hi);
+          const lo = Number((main as any).lo);
+          const d  = String((main as any).desc ?? '');
+          const u  = typeof (main as any).updated === 'number'
+                      ? (main as any).updated
+                      : (typeof (main as any).updated === 'string' ? Date.parse((main as any).updated) : undefined);
+          if (Number.isFinite(t)) {
+            now = { temp:t, desc:d, hi: Number.isFinite(hi)?hi:undefined, lo: Number.isFinite(lo)?lo:undefined, updated:u };
+          }
+        }
+        if (alive) setSt({ now, loading:false });
+      }catch{ alive && setSt({ now:undefined, loading:false }); }
+    })();
+    return ()=>{ alive=false; };
+  }, []);
+  return st;
+}
+
+// ===== news loader for headlines (unchanged logic) =====
+function useNewsByCategory() {
+  const [byCat, setByCat] = React.useState<Record<CanonCat, Headline[]>>(makeBuckets);
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const [newsRes, gmailRes] = await Promise.allSettled([
+        fetch('/api/news', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+        fetch('/api/gmail/feed', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+      ]);
+      const buckets = makeBuckets();
+      const add = (obj: unknown) => {
+        if (!isRec(obj)) return;
+        const map = (obj.newsByCategory as unknown);
+        if (!isRec(map)) return;
+        for (const [raw, arr] of Object.entries(map)) {
+          const cat = normalizeCat(raw);
+          if (!cat) continue;
+          const list = Array.isArray(arr) ? arr as Headline[] : [];
+          buckets[cat].push(...list);
+        }
+      };
+      if (newsRes.status==='fulfilled' && newsRes.value) add(newsRes.value);
+      if (gmailRes.status==='fulfilled' && gmailRes.value) add(gmailRes.value);
+      for (const cat of NEWS_ORDER) {
+        buckets[cat].sort((a,b)=>(b.ts??0)-(a.ts??0));
+        buckets[cat] = buckets[cat].slice(0, NEWS_LIMIT[cat]);
+      }
+      if (alive) setByCat(buckets);
+    })();
+    return ()=>{ alive=false; };
+  }, []);
+  return byCat;
+}
+
+const GUTTER = 6;
+
+// ---------- helpers ----------
+const fmtPct = (x: number | null | undefined) => (x == null ? '—' : `${(x * 100).toFixed(2)}%`);
+const colorFor = (x: number | null | undefined) =>
+x == null ? 'var(--muted)' : x > 0 ? 'var(--pos)' : x < 0 ? 'var(--neg)' : 'var(--muted)';
+const ageLabel = (iso?: string) => {
+if (!iso) return '—';
+const ms = Date.now() - Date.parse(iso);
+if (!Number.isFinite(ms) || ms < 0) return '—';
+const m = Math.floor(ms / 60000);
+if (m < 60) return `${m}m`;
+const h = Math.floor(m / 60);
+return `${h}h`;
+};
+
+// News order, relabel, and cap per category
+function arrangeNews(src: Record<string, NewsItem[]> | undefined) {
+const N = src || {};
+const commentary = N['Gmail'] || N['gmail'] || [];
+const order: Array<[string, number, NewsItem[]]> = [
+['DEW Line Theorists', 15, N['DEW Line Theorists'] || N['Theorists'] || []],
+['Commentary', 10, commentary],
+['Tech', 5, N['Tech'] || []],
+['Business', 5, N['Business'] || []],
+['Politics', 5, N['Politics'] || []],
+['International', 5, N['International'] || []],
+['NYC Metro', 5, N['NYC Metro'] || N['NYC'] || []],
+];
+return order.map(([label, cap, items]) => [label, (items || []).slice(0, cap)]) as Array<[string, NewsItem[]]>;
+}
+
+// ---------- components ----------
+function Th({
+label,
+onSort,
+active,
+dir,
+}: {
+label: string;
+onSort: () => void;
+active: boolean;
+dir: SortDir;
+}) {
+const ariaSort: 'none' | 'ascending' | 'descending' | 'other' = active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none';
+return (
+<th
+onClick={onSort}
+aria-sort={ariaSort}
+style={{ padding: '6px 8px', textAlign: 'left', cursor: 'pointer', userSelect: 'none' }}
+>
+{label} {active ? (dir === 'asc' ? '▲' : '▼') : ''}
+</th>
+);
+}
+
+function StatCard({ title, day, win, hideWindow }: { title: string; day: number; win: number; hideWindow?: boolean }) {
+return (
+<div className="card">
+<div className="cardTitle">{title}</div>
+<div className="cardRow">
+{!hideWindow && (
+<div>
+<div className="sub">Window</div>
+<div className="val" style={{ color: colorFor(win) }}>
+{fmtPct(win)}
+</div>
+</div>
+)}
+<div>
+<div className="sub">Day</div>
+<div className="val" style={{ color: colorFor(day) }}>
+{fmtPct(day)}
+</div>
+</div>
+</div>
+<style jsx>{`
+.card {
+border: 1px solid var(--border);
+border-radius: 6px;
+padding: 8px 10px;
+min-width: 140px;
+background: var(--panel-bg);
+}
+.cardTitle {
+font-size: 12px;
+color: var(--muted);
+}
+.cardRow {
+display: flex;
+gap: 12px;
+margin-top: 4px;
+align-items: baseline;
+}
+.sub {
+font-size: 11px;
+color: var(--muted2);
+}
+.val {
+font-weight: 600;
+}
+`}</style>
+</div>
+);
+}
+
+function NewsPanel() {
+  // top info boxes
+  const [aspView, setAspView] = React.useState<ASPView>('today');
+  const asp = useASP(aspView);
+  const subway = useSubway();
+  const weather = useWeather();
+
+  // headlines
+  const byCat = useNewsByCategory();
+  const allEmpty = NEWS_ORDER.every(cat => (byCat[cat]?.length ?? 0) === 0);
+
+  return (
+    <div className="panel panel--news">
+      <div className="panelHeader"><h2 style={{margin:0}}>News</h2></div>
+
+      <div className="panelBody">
+        {/* --- top info rows --- */}
+        <div className="infoRow">
+          {/* ASP */}
+          <div className="infoBox">
+            <div className="infoTitle">Alternate Side Parking</div>
+            <div className="seg">
+              {(['today','tomorrow','7day'] as ASPView[]).map(v=>(
+                <button
+                  key={v}
+                  onClick={()=>setAspView(v)}
+                  className={`segBtn ${aspView===v?'on':''}`}
+                  aria-pressed={aspView===v}
+                >{v==='7day'?'7-day':v}</button>
+              ))}
+            </div>
+            <div className="infoBody">
+              {asp.loading ? 'Loading…' : (
+                asp.items.length
+                  ? (aspView==='7day'
+                      ? <ul className="bullets">
+                          {asp.items.slice(0,7).map((d,i)=><li key={i}><b>{d.date}</b>: {d.status}{d.notes?` — ${d.notes}`:''}</li>)}
+                        </ul>
+                      : <div><b>{asp.items[0]?.date || ''}</b>: {asp.items[0]?.status || '—'}</div>
+                    )
+                  : 'No data'
+              )}
+              <div className="stamp">{asp.updated ? `Updated ${age(Date.now()-asp.updated)} ago` : ''}</div>
+            </div>
+          </div>
+
+          {/* Subway Alerts */}
+          <div className="infoBox">
+            <div className="infoTitle">Subway Service Alerts</div>
+            <div className="infoBody">
+              {subway.loading ? 'Loading…' :
+                subway.alerts.length
+                  ? <ul className="bullets">
+                      {subway.alerts.slice(0,5).map((a,i)=><li key={i}><b>{a.line}</b>: {a.text}</li>)}
+                    </ul>
+                  : 'No active alerts'}
+              <div className="stamp">{subway.updated ? `Updated ${age(Date.now()-subway.updated)} ago` : ''}</div>
+            </div>
+          </div>
+
+          {/* Weather */}
+          <div className="infoBox">
+            <div className="infoTitle">Weather</div>
+            <div className="infoBody">
+              {weather.loading ? 'Loading…' :
+                weather.now
+                  ? (
+                    <div>
+                      <div style={{fontSize:18, fontWeight:600}}>{Math.round(weather.now.temp)}°</div>
+                      <div>{weather.now.desc || ''}</div>
+                      {(weather.now.hi!=null || weather.now.lo!=null) &&
+                        <div>H {weather.now.hi!=null?Math.round(weather.now.hi):'—'}° · L {weather.now.lo!=null?Math.round(weather.now.lo):'—'}°</div>}
+                      <div className="stamp">{weather.now.updated ? `Updated ${age(Date.now()-weather.now.updated)} ago` : ''}</div>
+                    </div>
+                  )
+                  : 'No data'}
+            </div>
+          </div>
+        </div>
+
+        {/* divider */}
+        <hr className="sep" />
+
+        {/* --- headlines --- */}
+        {allEmpty ? (
+          <div style={{ color:'var(--muted2)' }}>No headlines.</div>
+        ) : (
+          NEWS_ORDER.map(cat => {
+            const items = byCat[cat] || [];
+            if (!items.length) return null;
+            return (
+              <div key={cat} style={{ marginBottom: 14 }}>
+                <h4 style={{ margin:'8px 0 6px' }}>{cat}</h4>
+                <ol style={{ margin:0, paddingLeft:18 }}>
+                  {items.map((it, i) => (
+                    <li key={i} style={{ marginBottom: 6, lineHeight: 1.25 }}>
+                      <a href={it.link} target="_blank" rel="noreferrer">{it.title}</a>
+                      {it.pub ? <span style={{ color:'var(--muted2)', marginLeft:8, fontSize:12 }}>— {it.pub}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <style jsx>{`
+        .infoRow{
+          display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;
+        }
+        .infoBox{
+          flex:1 1 260px; min-width:240px;
+          border:1px solid var(--border); border-radius:6px; padding:8px;
+          background:var(--panel-bg);
+        }
+        .infoTitle{ font-weight:600; margin-bottom:6px; }
+        .seg{ display:flex; gap:6px; margin-bottom:6px; }
+        .segBtn{
+          font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:4px; background:#fafafa;
+          cursor:pointer;
+        }
+        .segBtn.on{ background:#e8f0fe; border-color:#c6dafc; }
+        .infoBody{ font-size:13px; }
+        .bullets{ margin:0; padding-left:18px; }
+        .stamp{ color:var(--muted2); font-size:11px; margin-top:4px; }
+        .sep{ border:none; border-top:1px solid var(--border-subtle); margin:10px 0; }
+      `}</style>
+    </div>
+  );
+}
+
+// ---------- page ----------
+export default function Home() {
+// controls
+const [period, setPeriod] = useState<Period>('1W');
+const [from, setFrom] = useState('');
+const [to, setTo] = useState('');
+const [universe, setUniverse] = useState<Universe>('auto');
+
+// data
+const [data, setData] = useState<ComposeResp | null>(null);
+const [loading, setLoading] = useState(false);
+const [err, setErr] = useState<string | null>(null);
+
+// sorting
+const [sortKey, setSortKey] = useState<SortKey>('rW');
+const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+// layout widths + dragging
+const [wNews, setWNews] = useState(33);
+const [wIndex, setWIndex] = useState(34);
+const [wDew, setWDew] = useState(33);
+const dragRef = useRef<{ col: 1 | 2; startX: number; startW: number; nextW: number } | null>(null);
+
+// DEW line
+const [dewText, setDewText] = useState('');
+const [dewRunning, setDewRunning] = useState(false);
+const [dewImg, setDewImg] = useState('/dew/01.jpg');
+
+// news
+const [newsByCat, setNewsByCat] = useState<Record<string, NewsItem[]>>({});
+
+// ---------- builders ----------
+const buildQuery = useCallback(
+(withDew: boolean) => {
+const u = new URL('/api/compose', typeof window === 'undefined' ? 'http://localhost' : window.location.origin);
+u.searchParams.set('universe', universe);
+if (period === 'Custom' && from && to) {
+u.searchParams.set('from', from);
+u.searchParams.set('to', to);
+} else {
+u.searchParams.set('period', period === 'Custom' ? '1W' : period);
+}
+if (withDew) u.searchParams.set('dew', '1');
+return u.toString();
+},
+[universe, period, from, to],
+);
+
+const load = useCallback(
+async (withDew: boolean) => {
+setLoading(true);
+setErr(null);
+try {
+const url = buildQuery(withDew);
+const r = await fetch(url, { cache: 'no-store' });
+if (!r.ok) throw new Error(`${r.status}`);
+const j: ComposeResp = await r.json();
+setData(j);
+if (withDew) setDewText(j.dew || '');
+} catch (e) {
+setErr(e instanceof Error ? e.message : String(e));
+} finally {
+setLoading(false);
+}
+},
+[buildQuery],
+);
+
+const runDew = useCallback(async () => {
+setDewRunning(true);
+await load(true);
+setDewRunning(false);
+}, [load]);
+
+// initial compose fetch
+useEffect(() => {
+void load(false);
+}, [load]);
+
+// load news + gmail and merge caps
+useEffect(() => {
+const f = async () => {
+try {
+const [n, g] = await Promise.allSettled([
+fetch('/api/news', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)),
+fetch('/api/gmail/feed', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)),
+]);
+const nb = n.status === 'fulfilled' && n.value && n.value.newsByCategory ? (n.value.newsByCategory as Record<string, NewsItem[]>) : {};
+const gb = g.status === 'fulfilled' && g.value && g.value.newsByCategory ? (g.value.newsByCategory as Record<string, NewsItem[]>) : {};
+const keys = new Set([...Object.keys(nb), ...Object.keys(gb)]);
+const merged: Record<string, NewsItem[]> = {};
+keys.forEach((k) => {
+const a = Array.isArray(nb[k]) ? nb[k] : [];
+const b = Array.isArray(gb[k]) ? gb[k] : [];
+merged[k] = [...a, ...b].sort((x, y) => (y?.ts ?? 0) - (x?.ts ?? 0)).slice(0, 15);
+});
+setNewsByCat(merged);
+} catch {
+setNewsByCat({});
+}
+};
+void f();
+}, []);
+
+// gutters
+const onMouseMove = useCallback(
+(e: MouseEvent) => {
+const st = dragRef.current;
+if (!st) return;
+const dx = e.clientX - st.startX;
+const total = wNews + wIndex + wDew;
+if (st.col === 1) {
+const nw = Math.max(20, Math.min(60, st.startW + (dx / window.innerWidth) * 100));
+const ni = Math.max(20, Math.min(60, st.nextW - (dx / window.innerWidth) * 100));
+const rest = Math.max(10, total - nw - ni);
+setWNews(nw);
+setWIndex(ni);
+setWDew(rest);
+} else {
+const ni = Math.max(20, Math.min(60, st.startW + (dx / window.innerWidth) * 100));
+const nd = Math.max(20, Math.min(60, st.nextW - (dx / window.innerWidth) * 100));
+const rest = Math.max(10, total - wNews - ni);
+setWIndex(ni);
+setWDew(nd || rest);
+}
+},
+[wNews, wIndex, wDew],
+);
+const onMouseUp = useCallback(() => {
+dragRef.current = null;
+window.removeEventListener('mousemove', onMouseMove);
+window.removeEventListener('mouseup', onMouseUp);
+}, [onMouseMove]);
+const startDrag = (col: 1 | 2) => (e: React.MouseEvent) => {
+e.preventDefault();
+dragRef.current = { col, startX: e.clientX, startW: col === 1 ? wNews : wIndex, nextW: col === 1 ? wIndex : wDew };
+window.addEventListener('mousemove', onMouseMove);
+window.addEventListener('mouseup', onMouseUp);
+};
+
+const apply = () => void load(false);
+const randomImg = () => {
+const n = Math.floor(Math.random() * 55) + 1;
+const s = n.toString().padStart(2, '0');
+const next = `/dew/${s}.jpg`;
+setDewImg(next === dewImg ? '/dew/01.jpg' : next);
+};
+
+// sorted rows
+const rowsSorted = useMemo(() => {
+const rows = Array.isArray(data?.snapshot?.rows) ? (data!.snapshot!.rows as Row[]) : [];
+const activeKey: SortKey = period === '1D' ? 'r1' : sortKey;
+const val = (r: Row, k: SortKey): string | number => {
+switch (k) {
+case 'symbol':
+return r.symbol;
+case 'r1':
+return r.r1 ?? Number.NEGATIVE_INFINITY;
+case 'rW':
+return r.rW ?? Number.NEGATIVE_INFINITY;
+case 'w':
+return r.w;
+case 'sleeve':
+return r.sleeve || '—';
+case 'age': {
+const ms = Date.parse(r.asOf ?? '');
+return Number.isFinite(ms) ? ms : Number.NEGATIVE_INFINITY;
+}
+}
+};
+const sorted = [...rows].sort((a, b) => {
+const A = val(a, activeKey);
+const B = val(b, activeKey);
+if (A < B) return sortDir === 'asc' ? -1 : 1;
+if (A > B) return sortDir === 'asc' ? 1 : -1;
+return 0;
+});
+return sorted;
+}, [data, period, sortKey, sortDir]);
+
+const toggleSort = (k: SortKey) => {
+if (period === '1D' && k === 'rW') return;
+if (sortKey === k) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+else {
+setSortKey(k);
+setSortDir('desc');
+}
+};
+
+const indexStats = data?.snapshot?.index;
+const sleeveStats = data?.snapshot?.sleeves;
+
+return (
+<main className="layout">
+{/* News column */}
+<section style={{ width: `${wNews}%`, minWidth: 260 }}>
+  <NewsPanel />
+</section>
+
+<div className="gutter" onMouseDown={startDrag(1)} />
+
+{/* Index */}
+<section className="panel" style={{ width: `${wIndex}%` }}>
+<div className="panelHeader" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+<h2 style={{ margin: 0 }}>DEW Index</h2>
+
+<label className="lbl">Universe</label>
+<select value={universe} onChange={(e) => setUniverse(e.target.value as Universe)}>
+<option value="auto">auto</option>
+<option value="positions">positions</option>
+<option value="positions+watchlist">positions+watchlist</option>
+<option value="watchlist_only">watchlist</option>
+</select>
+
+<label className="lbl">Window</label>
+<select value={period} onChange={(e) => setPeriod(e.target.value as Period)}>
+<option value="1D">Day</option>
+<option value="1W">Week</option>
+<option value="1M">Month</option>
+<option value="1Q">Quarter</option>
+<option value="1Y">Year</option>
+<option value="Custom">Custom</option>
+</select>
+
+{period === 'Custom' && (
+<>
+<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+<input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+</>
+)}
+
+<button onClick={apply} disabled={loading} style={{ padding: '4px 10px' }}>
+{loading ? 'Loading…' : 'Apply'}
+</button>
+
+<div style={{ fontSize: 12, color: 'var(--muted2)', marginLeft: 'auto' }}>
+{data?.source ? `Source: ${data.source}` : ''}
+{data?.diagnostics ? ` · Coverage ${data.diagnostics.withBars}/${data.diagnostics.requestedSymbols}` : ''}
+{data?.diagnostics?.barsError ? ` · Error: ${data.diagnostics.barsError}` : ''}
+</div>
+</div>
+
+<div className="panelBody">
+<div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
+<StatCard title="Index" day={indexStats?.r1 ?? 0} win={indexStats?.rW ?? 0} hideWindow={period === '1D'} />
+<StatCard title="Core" day={sleeveStats?.Core?.r1 ?? 0} win={sleeveStats?.Core?.rW ?? 0} hideWindow={period === '1D'} />
+<StatCard
+title="Satellite"
+day={sleeveStats?.Satellite?.r1 ?? 0}
+win={sleeveStats?.Satellite?.rW ?? 0}
+hideWindow={period === '1D'}
+/>
+</div>
+
+<div style={{ maxHeight: '100%', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+<table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+<thead>
+<tr className="tblHead">
+<Th label="Ticker" onSort={() => toggleSort('symbol')} active={sortKey === 'symbol'} dir={sortDir} />
+{period !== '1D' && (
+<Th label="Window" onSort={() => toggleSort('rW')} active={sortKey === 'rW'} dir={sortDir} />
+)}
+<Th
+label="Day"
+onSort={() => toggleSort('r1')}
+active={sortKey === 'r1' || (period === '1D' && sortKey === 'rW')}
+dir={sortDir}
+/>
+<Th label="Age" onSort={() => toggleSort('age')} active={sortKey === 'age'} dir={sortDir} />
+<Th label="Weight" onSort={() => toggleSort('w')} active={sortKey === 'w'} dir={sortDir} />
+<Th label="Sleeve" onSort={() => toggleSort('sleeve')} active={sortKey === 'sleeve'} dir={sortDir} />
+</tr>
+</thead>
+<tbody>
+{rowsSorted.length === 0 ? (
+<tr>
+<td colSpan={period === '1D' ? 5 : 6} style={{ padding: 12, color: 'var(--muted2)' }}>
+No data.
+</td>
+</tr>
+) : (
+rowsSorted.map((r) => (
+<tr key={r.symbol} style={{ borderTop: '1px solid var(--row)' }}>
+<td style={{ padding: '6px 8px' }}>{r.symbol}</td>
+{period !== '1D' && (
+<td style={{ padding: '6px 8px', color: colorFor(r.rW), fontWeight: 600 }}>{fmtPct(r.rW)}</td>
+)}
+<td style={{ padding: '6px 8px', color: colorFor(r.r1), fontWeight: 600 }}>{fmtPct(r.r1)}</td>
+<td style={{ padding: '6px 8px' }}>{ageLabel(r.asOf)}</td>
+<td style={{ padding: '6px 8px', textAlign: 'right' }}>{(r.w * 100).toFixed(2)}</td>
+<td style={{ padding: '6px 8px' }}>{r.sleeve ?? '—'}</td>
+</tr>
+))
+)}
+</tbody>
+</table>
+</div>
+
+{err ? <div style={{ color: 'var(--neg)', marginTop: 8 }}>Error: {err}</div> : null}
+</div>
+</section>
+
+<div className="gutter" onMouseDown={startDrag(2)} />
+
+{/* DEW Line */}
+<section className="panel" style={{ width: `${wDew}%` }}>
+<div className="panelHeader" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+<h2 style={{ margin: 0 }}>DEW Line</h2>
+<button onClick={runDew} disabled={dewRunning} style={{ padding: '4px 10px' }}>
+{dewRunning ? 'Running…' : '1-800-DEW-LINE'}
+</button>
+</div>
+<div className="panelBody">
+{dewText && !dewText.startsWith('DEW Line disabled') ? (
+<div
+style={{
+whiteSpace: 'pre-wrap',
+border: '1px solid var(--border)',
+borderRadius: 6,
+padding: 10,
+minHeight: 320,
+background: 'var(--panel-bg)',
+}}
+>
+{dewText}
+</div>
+) : (
+<div
+style={{
+border: '1px solid var(--border)',
+borderRadius: 6,
+padding: 6,
+textAlign: 'center',
+background: 'var(--panel-bg)',
+}}
+>
+<div style={{ fontSize: 12, color: 'var(--muted2)', marginBottom: 6 }}>
+{dewText || 'Click the image to change'}
+</div>
+<img
+src={dewImg}
+alt="DEW placeholder"
+style={{ maxWidth: '100%', height: 'auto', cursor: 'pointer', borderRadius: 4 }}
+onClick={randomImg}
+/>
+</div>
+)}
+</div>
+</section>
+
+<style jsx>{`
+.layout {
+display: flex;
+gap: ${GUTTER}px;
+padding: 12px;
+box-sizing: border-box;
+height: calc(100vh - 0px);
+align-items: stretch; /* equal bottoms */
+background: var(--bg);
+color: var(--text);
+}
+.panel {
+display: flex;
+flex-direction: column;
+min-width: 240px;
+border: 1px solid var(--border);
+border-radius: 6px;
+background: var(--panel-bg);
+}
+.panelHeader {
+padding: 8px 10px;
+border-bottom: 1px solid var(--border);
+background: var(--header-bg);
+}
+.panelBody {
+flex: 1 1 auto;
+min-height: 0;
+overflow: auto;
+padding: 8px;
+}
+.gutter {
+width: ${GUTTER}px;
+cursor: col-resize;
+}
+.lbl {
+font-size: 12px;
+color: var(--muted2);
+}
+.tblHead {
+background: var(--thead-bg);
+color: var(--thead-fg);
+}
+`}</style>
+
+<style jsx global>{`
+  :root{
+    --gut: 6px;
+    /* tune this if your top chrome height changes */
+    --rowH: calc(100svh - 140px);
+    --border: #ddd;
+    --border-subtle: #eee;
+    --panel-bg: var(--bg, #fff);
+    --panel-head: rgba(0,0,0,0.03);
+    --muted2: #777;
+  }
+
+  /* main row holds 3 columns at a fixed height; children stretch */
+  .mainRow{
+    display:flex;
+    gap: var(--gut);
+    height: var(--rowH);
+    align-items: stretch;
+  }
+
+  /* each column */
+  .col{
+    min-width:260px;
+    min-height:0;              /* REQUIRED for inner scroll to work */
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* shared panel chrome */
+  .panel{
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:var(--panel-bg);
+    display:flex;
+    flex-direction:column;
+    min-height:0;              /* REQUIRED */
+    height:100%;
+  }
+  .panelHeader{
+    padding:8px 10px;
+    border-bottom:1px solid var(--border-subtle);
+    background:var(--panel-head);
+  }
+  .panelBody{
+    padding:8px 10px;
+    flex:1;                    /* fill remaining height */
+    min-height:0;              /* REQUIRED for overflow to clip */
+    overflow:auto;             /* internal scrolling */
+  }
+
+  /* News: keep same behavior as others (remove any previous override) */
+  .panel--news .panelBody{ overflow:auto; }
+`}</style>
+
+<style jsx global>{`
+:root {
+--bg: #ffffff;
+--text: #111111;
+--panel-bg: #ffffff;
+--border: #e1e1e1;
+--header-bg: #f7f7f7;
+--thead-bg: #e0e0e0; /* darker head row */
+--thead-fg: #111111;
+--row: #eeeeee;
+--muted: #444;
+--muted2: #777;
+--pos: #137333;
+--neg: #a50e0e;
+}
+@media (prefers-color-scheme: dark) {
+:root {
+--bg: #0f1115;
+--text: #e6e6e6;
+--panel-bg: #131722;
+--border: #2a2f3a;
+--header-bg: #171c2a;
+--thead-bg: #222a3a;
+--thead-fg: #f2f2f2;
+--row: #1f2533;
+--muted: #cfcfcf;
+--muted2: #a8a8a8;
+--pos: #44c38b;
+--neg: #ff5c5c;
+}
+}
+table {
+color: var(--text);
+}
+a {
+color: #1a73e8;
+}
+select,
+input,
+button {
+background: var(--panel-bg);
+color: var(--text);
+border: 1px solid var(--border);
+border-radius: 4px;
+}
+`}</style>
+</main>
+);
+}

@@ -1,0 +1,25 @@
+﻿node_modules/
+.next/
+.vercel/
+.env*
+!.env.example
+*.log
+coverage/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# DEW local data caches
+Timeline/social_feed_starter.zip
+dew_theory_library/.venv/
+dew_theory_library/data/
+dew_theory_library/ingest/
+dew_theory_library/.cache/
+
+# OS
+.DS_Store
+Thumbs.db

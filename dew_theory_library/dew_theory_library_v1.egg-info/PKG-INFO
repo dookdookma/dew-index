@@ -1,0 +1,126 @@
+Metadata-Version: 2.4
+Name: dew-theory-library-v1
+Version: 0.1.0
+Summary: Local ETL + hybrid search service for citation-safe PDF theory library.
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: uvicorn>=0.27.0
+Requires-Dist: pymupdf>=1.24.0
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: faiss-cpu>=1.8.0
+Requires-Dist: rank-bm25>=0.2.2
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: reportlab>=4.0.0; extra == "dev"
+Provides-Extra: st
+Requires-Dist: sentence-transformers>=3.0.0; extra == "st"
+
+# DEW Theory Library v1
+
+Local ETL + hybrid retrieval service for a PDF theory library with citation-safe provenance.
+
+## What it does
+
+- Ingests PDFs from `./library` (or `--library-root` override).
+- Computes stable `doc_id` from original source PDF bytes (`sha256[:16]`).
+- Optional OCR with OCRmyPDF into `data/ocr/`.
+- Extracts page-bounded text via PyMuPDF.
+- Chunks within page boundaries only.
+- Builds BM25 + FAISS hybrid index.
+- Serves FastAPI endpoints for grounded retrieval.
+- Produces health report for OCR/extraction quality.
+
+## System dependencies (OCR optional)
+
+For OCR stage (`make ocr`):
+- `ocrmypdf`
+- `tesseract`
+
+If OCRmyPDF is not installed, OCR stage no-ops with warning and exits 0.
+
+## Install
+
+```bash
+python -m venv .venv
+. .venv/Scripts/activate  # PowerShell: .venv\Scripts\Activate.ps1
+pip install -e .[dev]
+```
+
+Optional sentence-transformers backend:
+
+```bash
+pip install -e .[st]
+```
+
+## Library layout
+
+```text
+library/
+  McLuhan/
+    understanding_media.pdf
+  Debord/
+    spectacle.pdf
+```
+
+## Pipeline commands
+
+```bash
+make manifest
+make ocr
+make extract
+make chunk
+make index
+make health
+make all
+```
+
+Force rebuild for stages that support it:
+
+```bash
+make all FORCE=1
+```
+
+## Serve API
+
+```bash
+make serve
+```
+
+Runs on `http://127.0.0.1:8787`.
+
+### Search
+
+```bash
+curl -X POST http://127.0.0.1:8787/search \
+  -H "Content-Type: application/json" \
+  -d "{\"query\":\"medium is the message\", \"theorist\":\"McLuhan\", \"top_k\":8}"
+```
+
+### Chunk
+
+```bash
+curl http://127.0.0.1:8787/chunk/<chunk_id>
+```
+
+### Doc metadata
+
+```bash
+curl http://127.0.0.1:8787/doc/<doc_id>
+```
+
+### Doc pages
+
+```bash
+curl "http://127.0.0.1:8787/doc/<doc_id>/pages?start=1&end=3"
+```
+
+## Stable citation guarantee
+
+`doc_id` is derived from the original source PDF bytes, not OCR output, so citations remain stable across re-OCR.
+
+## Tests (offline)
+
+```bash
+pytest -q
+```

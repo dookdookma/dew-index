@@ -1,0 +1,36 @@
+// Lowercase addresses. Exact-match filter for "From".
+export const ALLOW_SENDERS: string[] = [
+  // EXAMPLES Ã¢â‚¬â€ replace with your list
+  'tbpn@substack.com',
+  'emilysundberg@substack.com',
+  'lindynewsletter@mail.beehiiv.com',
+  'michaellange@substack.com',
+  'astropoets@substack.com',
+  '8ball@substack.com',
+  'biggerapplenewsletter@substack.com',
+  'goddisk@substack.com',
+  'nemesisglobal@substack.com',
+  'econlab@substack.com',
+  'natesnewsletter@substack.com',
+  'robhorning@substack.com',
+  'samkriss@substack.com',
+  'email@semianalysis.com',
+  'a16zamericandynamism@substack.com',
+  'mcrumps@substack.com',
+  'bizsherbert@substack.com',
+  'covidianaesthetics@substack.com',
+  'tbpn+top-interviews@substack.com',
+  'tbpn+run-of-show@substack.com',
+  'editor@thelampmagazine.com',
+  'nymphetalumni@substack.com',
+  'a16zfintech@substack.com',
+  'noreply@polymarket.com',
+  'claudeopus3@substack.com',
+  'donaldboat@substack.com',
+  'donotresearch@substack.com',
+  'citrini@substack.com',
+  'letters@newcriterion.com',
+  
+  
+  'piratewires+main@substack.com',
+];
