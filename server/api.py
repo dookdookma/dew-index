@@ -135,10 +135,14 @@ def health_stats() -> dict:
                 c += 1
         return c
 
+    app_pages_dir = "/app/data/pages"
+    data_pages_dir = os.path.join(data_dir, "pages")
     return {
         "chunks_size": os.path.getsize(chunks_path) if os.path.exists(chunks_path) else 0,
         "chunks_lines": _line_count(chunks_path),
         "meta_size": os.path.getsize(meta_path) if os.path.exists(meta_path) else 0,
         "meta_lines": _line_count(meta_path),
         "engine_meta_len": len(_engine().meta) if os.path.exists(meta_path) else 0,
+        "app_pages_count": len(os.listdir(app_pages_dir)) if os.path.exists(app_pages_dir) else 0,
+        "data_pages_count": len(os.listdir(data_pages_dir)) if os.path.exists(data_pages_dir) else 0,
     }
