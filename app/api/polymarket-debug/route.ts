@@ -112,11 +112,24 @@ export async function GET(req: NextRequest) {
 
   const fetched = await fetchPolymarketIdeas(limit, timeoutMs);
   const enriched = fetched.ideas.map((m) => {
+    const hasYesNo = typeof m.yesProb === 'number' && Number.isFinite(m.yesProb) && typeof m.noProb === 'number' && Number.isFinite(m.noProb);
+    const hasV24 = typeof m.volume24hr === 'number' && Number.isFinite(m.volume24hr);
+    const hasVTot = typeof m.volume === 'number' && Number.isFinite(m.volume) && (m.volume as number) > 0;
+    const d = daysTo(m.endDate);
+    const hasEnd = d !== null;
+
     const v24 = m.volume24hr ?? 0;
     const vTot = m.volume ?? 0;
     const surgePct = vTot > 0 ? v24 / vTot : 0;
-    const d = daysTo(m.endDate);
     const maxSide = Math.max(m.yesProb ?? 0, m.noProb ?? 0);
+
+    const completeness = {
+      hasYesNo,
+      hasV24,
+      hasVTot,
+      hasEnd,
+      complete: hasYesNo && hasV24 && hasVTot && hasEnd,
+    };
 
     const filters = {
       asymmetricAlpha: maxSide <= asymMax,
@@ -125,13 +138,14 @@ export async function GET(req: NextRequest) {
       girardMimeticTrap: !(maxSide >= crowdPrice && surgePct >= crowdSurge),
     };
 
-    const passAll = filters.asymmetricAlpha && filters.capitalEfficiency && filters.vpaSurge && filters.girardMimeticTrap;
+    const passAll = completeness.complete && filters.asymmetricAlpha && filters.capitalEfficiency && filters.vpaSurge && filters.girardMimeticTrap;
 
     return {
       ...m,
       daysToResolution: d,
       surgePct,
       maxSideProb: maxSide,
+      completeness,
       filters,
       passAll,
     };
@@ -144,10 +158,15 @@ export async function GET(req: NextRequest) {
     retainedCount: fetched.ideas.length,
     passAllCount: enriched.filter((x) => x.passAll).length,
     filterCounts: {
-      asymmetricAlphaFail: enriched.filter((x) => !x.filters.asymmetricAlpha).length,
-      capitalEfficiencyFail: enriched.filter((x) => !x.filters.capitalEfficiency).length,
-      vpaSurgeFail: enriched.filter((x) => !x.filters.vpaSurge).length,
-      mimeticTrapFail: enriched.filter((x) => !x.filters.girardMimeticTrap).length,
+      rejectedMissingFields: enriched.filter((x) => !x.completeness.complete).length,
+      missingYesNo: enriched.filter((x) => !x.completeness.hasYesNo).length,
+      missingVolume24h: enriched.filter((x) => !x.completeness.hasV24).length,
+      missingVolumeTotal: enriched.filter((x) => !x.completeness.hasVTot).length,
+      missingEndDate: enriched.filter((x) => !x.completeness.hasEnd).length,
+      asymmetricAlphaFail: enriched.filter((x) => x.completeness.complete && !x.filters.asymmetricAlpha).length,
+      capitalEfficiencyFail: enriched.filter((x) => x.completeness.complete && !x.filters.capitalEfficiency).length,
+      vpaSurgeFail: enriched.filter((x) => x.completeness.complete && !x.filters.vpaSurge).length,
+      mimeticTrapFail: enriched.filter((x) => x.completeness.complete && !x.filters.girardMimeticTrap).length,
     },
     thresholds: { asymMax, horizonDays, surgeMin, crowdPrice, crowdSurge },
   };
