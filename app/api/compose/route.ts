@@ -34,6 +34,9 @@ const DEW_FETCH_TIMEOUT_POLYMARKET_MS = Math.max(2000, Math.min(30000, Number(pr
 const DEW_POLY_ASYM_MAX = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_ASYM_MAX ?? '0.85')));
 const DEW_POLY_HORIZON_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POLY_HORIZON_DAYS ?? '90')));
 const DEW_POLY_SURGE_MIN = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN ?? '0.10')));
+const DEW_POLY_SURGE_MIN_LONG = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN_LONG ?? '0.20')));
+const DEW_POLY_LONG_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POLY_LONG_DAYS ?? '90')));
+const DEW_POLY_SPREAD_SUM_MAX = Math.max(1, Math.min(2, Number(process.env.DEW_POLY_SPREAD_SUM_MAX ?? '1.25')));
 const DEW_POLY_CROWD_PRICE = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_CROWD_PRICE ?? '0.85')));
 const DEW_POLY_CROWD_SURGE = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_CROWD_SURGE ?? '0.25')));
 
@@ -183,12 +186,15 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number, signalTerm
     const v24 = m.volume24hr ?? 0;
     const vTot = m.volume ?? 0;
     const surgePct = v24 / vTot;
+    const spreadSum = (m.yesProb ?? 0) + (m.noProb ?? 0);
+    const surgeThreshold = (d !== null && d >= DEW_POLY_LONG_DAYS) ? DEW_POLY_SURGE_MIN_LONG : DEW_POLY_SURGE_MIN;
 
     const asymmetricAlpha = maxSide <= DEW_POLY_ASYM_MAX;
     const capitalEfficiency = d !== null && d <= DEW_POLY_HORIZON_DAYS;
-    const vpaSurge = surgePct >= DEW_POLY_SURGE_MIN;
+    const vpaSurge = surgePct >= surgeThreshold;
+    const spreadLiquidity = spreadSum <= DEW_POLY_SPREAD_SUM_MAX;
     const girardMimeticTrap = !(maxSide >= DEW_POLY_CROWD_PRICE && surgePct >= DEW_POLY_CROWD_SURGE);
-    const passAll = asymmetricAlpha && capitalEfficiency && vpaSurge && girardMimeticTrap;
+    const passAll = asymmetricAlpha && capitalEfficiency && vpaSurge && spreadLiquidity && girardMimeticTrap;
 
     const volumeNorm = Math.min(1, v24 / 1_000_000);
     const timeFit = d === null ? 0 : Math.max(0, 1 - d / DEW_POLY_HORIZON_DAYS);

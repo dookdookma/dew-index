@@ -107,6 +107,9 @@ export async function GET(req: NextRequest) {
   const asymMax = Number(url.searchParams.get('asymMax') ?? '0.85');
   const horizonDays = Number(url.searchParams.get('horizonDays') ?? '90');
   const surgeMin = Number(url.searchParams.get('surgeMin') ?? '0.10');
+  const surgeMinLong = Number(url.searchParams.get('surgeMinLong') ?? '0.20');
+  const longDays = Number(url.searchParams.get('longDays') ?? '90');
+  const spreadSumMax = Number(url.searchParams.get('spreadSumMax') ?? '1.25');
   const crowdPrice = Number(url.searchParams.get('crowdPrice') ?? '0.85');
   const crowdSurge = Number(url.searchParams.get('crowdSurge') ?? '0.25');
 
@@ -122,6 +125,7 @@ export async function GET(req: NextRequest) {
     const vTot = m.volume ?? 0;
     const surgePct = vTot > 0 ? v24 / vTot : 0;
     const maxSide = Math.max(m.yesProb ?? 0, m.noProb ?? 0);
+    const spreadSum = (m.yesProb ?? 0) + (m.noProb ?? 0);
 
     const completeness = {
       hasYesNo,
@@ -131,14 +135,16 @@ export async function GET(req: NextRequest) {
       complete: hasYesNo && hasV24 && hasVTot && hasEnd,
     };
 
+    const surgeThreshold = (d !== null && d >= longDays) ? surgeMinLong : surgeMin;
     const filters = {
       asymmetricAlpha: maxSide <= asymMax,
       capitalEfficiency: d === null ? false : d <= horizonDays,
-      vpaSurge: surgePct >= surgeMin,
+      vpaSurge: surgePct >= surgeThreshold,
+      spreadLiquidity: spreadSum <= spreadSumMax,
       girardMimeticTrap: !(maxSide >= crowdPrice && surgePct >= crowdSurge),
     };
 
-    const passAll = completeness.complete && filters.asymmetricAlpha && filters.capitalEfficiency && filters.vpaSurge && filters.girardMimeticTrap;
+    const passAll = completeness.complete && filters.asymmetricAlpha && filters.capitalEfficiency && filters.vpaSurge && filters.spreadLiquidity && filters.girardMimeticTrap;
 
     return {
       ...m,
@@ -166,13 +172,14 @@ export async function GET(req: NextRequest) {
       asymmetricAlphaFail: enriched.filter((x) => x.completeness.complete && !x.filters.asymmetricAlpha).length,
       capitalEfficiencyFail: enriched.filter((x) => x.completeness.complete && !x.filters.capitalEfficiency).length,
       vpaSurgeFail: enriched.filter((x) => x.completeness.complete && !x.filters.vpaSurge).length,
+      spreadLiquidityFail: enriched.filter((x) => x.completeness.complete && !x.filters.spreadLiquidity).length,
       mimeticTrapFail: enriched.filter((x) => x.completeness.complete && !x.filters.girardMimeticTrap).length,
     },
-    thresholds: { asymMax, horizonDays, surgeMin, crowdPrice, crowdSurge },
+    thresholds: { asymMax, horizonDays, surgeMin, surgeMinLong, longDays, spreadSumMax, crowdPrice, crowdSurge },
   };
 
   return NextResponse.json({
     summary,
-    sampleTopByVolume24h: enriched.slice(0, 40),
+    sampleTopByVolume24h: enriched.slice(0, 100),
   });
 }
