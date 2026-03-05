@@ -65,8 +65,9 @@ export async function libraryAdjudicateForTraderAgent({
 
   for (const signal of trimmed) {
     try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 4500);
+      const retryOnce = async () => {
+        const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 9000);
       const sr = await fetch(`${DEW_LIB_URL}/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,11 +76,17 @@ export async function libraryAdjudicateForTraderAgent({
         signal: controller.signal,
       });
       clearTimeout(t);
-      if (!sr.ok) {
+      if (!sr.ok) return null as any[] | null;
+      const hits = (await sr.json()) as any[];
+      return hits;
+      };
+
+      let hits = await retryOnce();
+      if (!hits) hits = await retryOnce();
+      if (!hits) {
         errors.push(`search failed for signal: ${signal}`);
         continue;
       }
-      const hits = (await sr.json()) as any[];
       const seen = new Set<string>();
       const picked = [] as DewLibCitation[];
 

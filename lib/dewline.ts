@@ -68,8 +68,8 @@ export async function dewLine({
 
   const dewLibrary = await libraryAdjudicateForTraderAgent({
     signals: signalCandidates,
-    topK: 4,
-    maxSignals: 3,
+    topK: 3,
+    maxSignals: 2,
     maxCitationsPerSignal: 1,
     fetchChunkText: false,
   });
@@ -143,6 +143,7 @@ Timeline (24h): ${JSON.stringify(timeline.slice(0, 25))}
 Timeline Cache: ${JSON.stringify(timelineCache.slice(0, 240))}
 Polymarket (live): ${JSON.stringify(polymarket.slice(0, 150))}
 DEW Library Adjudication: ${JSON.stringify(dewLibrary)}
+DEW Library Errors (if any): ${JSON.stringify(dewLibrary.errors || [])}
 
 Output format (strict, exact order):
 DEW LINE NOTE
