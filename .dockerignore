@@ -1,0 +1,16 @@
+﻿.git
+.gitignore
+.vercel
+.next
+node_modules
+**/__pycache__
+**/*.pyc
+.venv
+venv
+coverage
+*.log
+Timeline/social_feed_starter.zip
+dew_theory_library/.venv
+dew_theory_library/data
+dew_theory_library/ingest
+dew_theory_library/.cache
