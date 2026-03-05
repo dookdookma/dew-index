@@ -103,3 +103,18 @@ def get_doc(doc_id: str) -> dict:
         "avg_chars_per_page": doc["avg_chars_per_page"],
         "health_flags": _doc_health_flags(doc),
     }
+
+@app.get("/health/index")
+def health_index() -> dict:
+    cfg = _paths()
+    data_dir = cfg.data_dir
+    checks = {
+        "data_dir": data_dir,
+        "manifest_path": cfg.manifest_path,
+        "exists_manifest": os.path.exists(cfg.manifest_path),
+        "exists_chunks": os.path.exists(os.path.join(data_dir, "chunks.jsonl")),
+        "exists_bm25": os.path.exists(os.path.join(data_dir, "index", "bm25_tokens.json")),
+        "exists_faiss": os.path.exists(os.path.join(data_dir, "index", "faiss.index")),
+        "exists_meta": os.path.exists(os.path.join(data_dir, "index", "meta.jsonl")),
+    }
+    return checks
