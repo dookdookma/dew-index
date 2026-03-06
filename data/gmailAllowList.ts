@@ -1,6 +1,6 @@
-// Lowercase addresses. Exact-match filter for "From".
+﻿// Lowercase addresses. Exact-match filter for "From".
 export const ALLOW_SENDERS: string[] = [
-  // EXAMPLES Ã¢â‚¬â€ replace with your list
+  // EXAMPLES ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â replace with your list
   'tbpn@substack.com',
   'emilysundberg@substack.com',
   'lindynewsletter@mail.beehiiv.com',
@@ -29,8 +29,10 @@ export const ALLOW_SENDERS: string[] = [
   'donaldboat@substack.com',
   'donotresearch@substack.com',
   'citrini@substack.com',
-  'letters@newcriterion.com',
+  
+  'adamtooze@substack.com',
   
   
   'piratewires+main@substack.com',
 ];
+
