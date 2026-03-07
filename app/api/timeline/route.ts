@@ -857,6 +857,8 @@ export async function GET(req: Request) {
     const requestedBillingReset = params.get('reset_billing') === '1';
     const resetKeyParam = params.get('reset_key') || '';
     const includeXCache = params.get('include_x_cache') === '1';
+    const disableXApi = params.get('disable_x_api') === '1';
+    const xCacheOnly = params.get('x_cache_only') === '1';
     const raw = await fs.readFile(SOURCES_JSON, 'utf8');
     const cfg = JSON.parse(raw) as TimelineConfig;
     const limitRaw = Number(params.get('limit') ?? '0');
@@ -884,19 +886,19 @@ export async function GET(req: Request) {
     }
     const entries = [
       ...redditFeeds.map((source) => ({ source, channel: 'reddit' as const })),
-      ...xSources.map((source) => ({ source, channel: 'x' as const })),
+      ...(xCacheOnly ? [] : xSources.map((source) => ({ source, channel: 'x' as const }))),
     ];
 
     const bearer = getXBearerToken();
     const usagePromise =
-      bearer && process.env.TIMELINE_USE_X_API !== '0'
+      bearer && process.env.TIMELINE_USE_X_API !== '0' && !disableXApi
         ? fetchXApiUsage(bearer).catch(() => null)
         : Promise.resolve(null);
 
     const results = await Promise.allSettled(
       entries.map(async (entry) => {
         const account = accountFromSource(entry.source);
-        const useXApi = entry.channel === 'x' && !!account && !!bearer && process.env.TIMELINE_USE_X_API !== '0';
+        const useXApi = entry.channel === 'x' && !!account && !!bearer && process.env.TIMELINE_USE_X_API !== '0' && !disableXApi;
         const preferred = entry.channel === 'x' && account ? await getPreferredProvider(account) : null;
         const candidates = entry.channel === 'x'
           ? prioritizeCandidates([

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
@@ -298,12 +300,28 @@ type Diagnostics = {
   snapshots: boolean;
 };
 
+
+
+async function loadLatestDailyCache(): Promise<any | null> {
+  try {
+    const fs = await import('node:fs/promises');
+    const dir = path.join(process.cwd(), 'cache', 'daily');
+    const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json')).sort();
+    if (!files.length) return null;
+    const latest = files[files.length - 1];
+    const raw = await readFile(path.join(dir, latest), 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const period = (url.searchParams.get('period') as Period) || '1W';
   const fromQ = url.searchParams.get('from');
   const toQ = url.searchParams.get('to');
   const dew = url.searchParams.get('dew') === '1';
+  const useCache = url.searchParams.get('use_cache') !== '0';
   const universeParam = (url.searchParams.get('universe') || 'auto') as Parameters<typeof buildUniverse>[1];
 
   const win = (fromQ && toQ) ? { from: fromQ, to: toQ } : windowFrom(period);
@@ -510,6 +528,18 @@ const dayReturn = (sym: string, bars: Bar[]) => {
     dewPolymarket = [];
   }
 
+
+  if (dew && useCache) {
+    const c = await loadLatestDailyCache();
+    if (c?.inputs) {
+      const cHead = Array.isArray(c.inputs.headlines) ? c.inputs.headlines : [];
+      const cTl = Array.isArray(c.inputs.timeline) ? c.inputs.timeline : [];
+      const cTc = Array.isArray(c.inputs.timelineCache) ? c.inputs.timelineCache : [];
+      if (cHead.length) dewNews = cHead.map((x:any)=>({ title:x.title, link:x.link }));
+      if (cTl.length) dewTimeline = cTl.map((x:any)=>({ title:x.title, link:x.link, body:x.body, source:x.source }));
+      if (cTc.length) dewXCache = cTc.map((x:any)=>({ title:x.title, link:x.link, body:x.body, source:x.source }));
+    }
+  }
 
   // optional DEW text
   let dewText = '';
