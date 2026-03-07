@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
+import { getRedis } from '@/lib/kv';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
@@ -304,13 +303,9 @@ type Diagnostics = {
 
 async function loadLatestDailyCache(): Promise<any | null> {
   try {
-    const fs = await import('node:fs/promises');
-    const dir = path.join(process.cwd(), 'cache', 'daily');
-    const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.json')).sort();
-    if (!files.length) return null;
-    const latest = files[files.length - 1];
-    const raw = await readFile(path.join(dir, latest), 'utf-8');
-    return JSON.parse(raw);
+    const redis = getRedis();
+    const latest = await redis.get<any>('cache:daily:latest');
+    return latest || null;
   } catch {
     return null;
   }

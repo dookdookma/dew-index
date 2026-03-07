@@ -1,6 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { getRedis } from '@/lib/kv';
 import { libraryAdjudicateForTraderAgent } from '@/lib/dewLibraryModule';
 
 export const runtime = 'nodejs';
@@ -28,9 +27,8 @@ export async function GET(req: NextRequest) {
 
   const origin = req.nextUrl.origin;
   const now = new Date();
-  const date = now.toISOString().slice(0,10);
+  const date = now.toISOString().slice(0, 10);
 
-  // X-dark timeline: no xapi calls, use x cache only + fresh reddit feeds
   const timelineUrl = `${origin}/api/timeline?hours=24&limit=1500&include_x_cache=1&x_cache_only=1&disable_x_api=1&x_cache_limit=1200`;
   const newsUrl = `${origin}/api/news`;
   const gmailUrl = `${origin}/api/gmail/feed`;
@@ -44,17 +42,17 @@ export async function GET(req: NextRequest) {
   ]);
 
   const headlines = [
-    ...Object.values((news?.newsByCategory || {})).flat().map((x:any)=>({title:x?.title||'',link:x?.link||'',source:'news',ts:x?.pub||x?.ts||null})),
-    ...Object.values((gmail?.newsByCategory || {})).flat().map((x:any)=>({title:x?.title||'',link:x?.link||'',source:'commentary',ts:x?.pub||x?.ts||null})),
-  ].filter((x:any)=>x.title && x.link).slice(0, 400);
+    ...Object.values((news?.newsByCategory || {})).flat().map((x: any) => ({ title: x?.title || '', link: x?.link || '', source: 'news', ts: x?.pub || x?.ts || null })),
+    ...Object.values((gmail?.newsByCategory || {})).flat().map((x: any) => ({ title: x?.title || '', link: x?.link || '', source: 'commentary', ts: x?.pub || x?.ts || null })),
+  ].filter((x: any) => x.title && x.link).slice(0, 400);
 
   const timelineItems = Array.isArray(timeline?.items) ? timeline.items : [];
   const timelineCache = Array.isArray(timeline?.xCache) ? timeline.xCache : [];
 
   const signalCandidates = [
-    ...headlines.map((x:any)=>x.title),
-    ...timelineItems.map((x:any)=>x.title),
-    ...timelineCache.map((x:any)=>x.title),
+    ...headlines.map((x: any) => x.title),
+    ...timelineItems.map((x: any) => x.title),
+    ...timelineCache.map((x: any) => x.title),
   ].filter(Boolean).slice(0, 24);
 
   const adjudication = await libraryAdjudicateForTraderAgent({
@@ -65,26 +63,26 @@ export async function GET(req: NextRequest) {
     fetchChunkText: false,
   });
 
-  const signals = (adjudication.reads || []).map((r:any)=>({
-    id: `${date}:${(r.signal || '').slice(0,40)}`,
+  const signals = (adjudication.reads || []).map((r: any) => ({
+    id: `${date}:${(r.signal || '').slice(0, 40)}`,
     lens: r.citations?.[0]?.theorist || '',
     state: (r.citations && r.citations.length) ? 'confirmed_structural' : 'insufficient_evidence',
     confidence: (r.citations && r.citations.length) ? 0.62 : 0.2,
     summary: r.signal,
-    citations: (r.citations || []).map((c:any)=>(
-      { theorist:c.theorist, title:c.title, doc_id:c.doc_id, page_start:c.page_start, page_end:c.page_end, chunk_id:c.chunk_id }
+    citations: (r.citations || []).map((c: any) => (
+      { theorist: c.theorist, title: c.title, doc_id: c.doc_id, page_start: c.page_start, page_end: c.page_end, chunk_id: c.chunk_id }
     ))
   }));
 
-  const contradictionsDetected = signals.filter((s:any)=>s.state !== 'confirmed_structural').length;
-
+  const contradictionsDetected = signals.filter((s: any) => s.state !== 'confirmed_structural').length;
   const polySummary = poly?.summary || {};
+
   const daily = {
     date,
     generatedAt: now.toISOString(),
     inputs: {
       headlines,
-      commentary: headlines.filter((x:any)=>x.source==='commentary'),
+      commentary: headlines.filter((x: any) => x.source === 'commentary'),
       timeline: timelineItems,
       timelineCache,
     },
@@ -103,25 +101,23 @@ export async function GET(req: NextRequest) {
     }
   };
 
-  const cacheDir = path.join(process.cwd(), 'cache', 'daily');
-  await mkdir(cacheDir, { recursive: true });
-  const outPath = path.join(cacheDir, `${date}.json`);
-  await writeFile(outPath, JSON.stringify(daily, null, 2), 'utf-8');
+  const redis = getRedis();
+  await redis.set(`cache:daily:${date}`, daily, { ex: 60 * 60 * 24 * 40 });
+  await redis.set('cache:daily:latest', daily, { ex: 60 * 60 * 24 * 40 });
+  await redis.set('cache:state', {
+    lastDaily: date,
+    lastBuiltAt: now.toISOString(),
+  }, { ex: 60 * 60 * 24 * 365 });
 
-  // update state
-  const statePath = path.join(process.cwd(), 'cache', 'state.json');
-  let state:any = { lastDaily: null, lastWeekly: null, lastMonthly: null, rollupCoverage: {} };
-  try { state = JSON.parse(await readFile(statePath, 'utf-8')); } catch {}
-  state.lastDaily = date;
-  await writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
-
-  return NextResponse.json({ ok: true, date, path: outPath, counts: {
-    headlines: headlines.length,
-    timeline: timelineItems.length,
-    timelineCache: timelineCache.length,
-    signals: signals.length,
-    passAll: Number(polySummary.passAllCount || 0),
-  }});
+  return NextResponse.json({
+    ok: true,
+    date,
+    counts: {
+      headlines: headlines.length,
+      timeline: timelineItems.length,
+      timelineCache: timelineCache.length,
+      signals: signals.length,
+      passAll: Number(polySummary.passAllCount || 0),
+    }
+  });
 }
-
-
