@@ -1,0 +1,15 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DEW Monthly Rollup",
+  "type": "object",
+  "required": ["month", "generatedAt", "sourceWeeks", "structuralRegime", "forecast"],
+  "properties": {
+    "month": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "sourceWeeks": { "type": "array", "items": { "type": "string" } },
+    "structuralRegime": { "type": "string" },
+    "dominantLenses": { "type": "array", "items": { "type": "object" } },
+    "persistentBottlenecks": { "type": "array", "items": { "type": "string" } },
+    "forecast": { "type": "object" }
+  }
+}

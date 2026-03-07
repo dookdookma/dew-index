@@ -1,0 +1,21 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DEW Daily Snapshot",
+  "type": "object",
+  "required": ["date", "generatedAt", "inputs", "signals", "markets"],
+  "properties": {
+    "date": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "headlines": { "type": "array", "items": { "type": "object" } },
+        "commentary": { "type": "array", "items": { "type": "object" } },
+        "timeline": { "type": "array", "items": { "type": "object" } }
+      },
+      "required": ["headlines", "commentary", "timeline"]
+    },
+    "signals": { "type": "array", "items": { "type": "object" } },
+    "markets": { "type": "object" }
+  }
+}

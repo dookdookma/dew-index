@@ -1,0 +1,16 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DEW Weekly Rollup",
+  "type": "object",
+  "required": ["week", "generatedAt", "sourceDays", "gravityCenter", "signalStats", "marketStats"],
+  "properties": {
+    "week": { "type": "string" },
+    "generatedAt": { "type": "string" },
+    "sourceDays": { "type": "array", "items": { "type": "string" } },
+    "gravityCenter": { "type": "string" },
+    "emergentCollisions": { "type": "array", "items": { "type": "object" } },
+    "nextBottleneck": { "type": "string" },
+    "signalStats": { "type": "object" },
+    "marketStats": { "type": "object" }
+  }
+}
