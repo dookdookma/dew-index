@@ -18,6 +18,7 @@ async function fetchJson(url: string, timeoutMs = 12000): Promise<any> {
 }
 
 export async function GET(req: NextRequest) {
+  try {
   const key = process.env.DEW_CACHE_BUILD_KEY || '';
   const provided = req.nextUrl.searchParams.get('key') || '';
   const isCron = req.headers.get('x-vercel-cron') === '1';
@@ -120,4 +121,9 @@ export async function GET(req: NextRequest) {
       passAll: Number(polySummary.passAllCount || 0),
     }
   });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || String(e) }, { status: 500 });
+  }
 }
+
+
