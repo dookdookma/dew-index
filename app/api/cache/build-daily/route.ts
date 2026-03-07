@@ -19,7 +19,12 @@ async function fetchJson(url: string, timeoutMs = 12000): Promise<any> {
 }
 
 export async function GET(req: NextRequest) {
-  const key = process.env.DEW_CACHE_BUILD_KEY || '';\n  const provided = req.nextUrl.searchParams.get('key') || '';\n  const isCron = req.headers.get('x-vercel-cron') === '1';\n  if (!isCron && key && provided !== key) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const key = process.env.DEW_CACHE_BUILD_KEY || '';
+  const provided = req.nextUrl.searchParams.get('key') || '';
+  const isCron = req.headers.get('x-vercel-cron') === '1';
+  if (!isCron && key && provided !== key) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
 
   const origin = req.nextUrl.origin;
   const now = new Date();
@@ -118,4 +123,5 @@ export async function GET(req: NextRequest) {
     passAll: Number(polySummary.passAllCount || 0),
   }});
 }
+
 
