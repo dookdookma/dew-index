@@ -31,6 +31,8 @@ const DEW_FETCH_TIMEOUT_NEWS_MS = Math.max(1500, Math.min(30000, Number(process.
 const DEW_FETCH_TIMEOUT_GMAIL_MS = Math.max(1500, Math.min(30000, Number(process.env.DEW_FETCH_TIMEOUT_GMAIL_MS ?? '7000')));
 const DEW_FETCH_TIMEOUT_TIMELINE_MS = Math.max(2000, Math.min(45000, Number(process.env.DEW_FETCH_TIMEOUT_TIMELINE_MS ?? '15000')));
 const DEW_FETCH_TIMEOUT_POLYMARKET_MS = Math.max(2000, Math.min(30000, Number(process.env.DEW_FETCH_TIMEOUT_POLYMARKET_MS ?? '9000')));
+const DEW_LIBRARY_URL = (process.env.DEW_LIBRARY_URL || 'https://dew-index-production.up.railway.app').replace(/\/$/, '');
+const DEW_LIB_GATE_MIN = Math.max(1, Math.min(6, Number(process.env.DEW_LIB_GATE_MIN ?? '2')));
 const DEW_POLY_ASYM_MAX = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_ASYM_MAX ?? '0.85')));
 const DEW_POLY_HORIZON_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POLY_HORIZON_DAYS ?? '90')));
 const DEW_POLY_SURGE_MIN = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN ?? '0.10')));
@@ -218,6 +220,39 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number, signalTerm
 }
 
 
+
+
+async function libraryGateSignalTerms(terms: string[], timeoutMs: number): Promise<string[]> {
+  const cleaned = Array.from(new Set((terms || []).map((x) => String(x || '').trim()).filter(Boolean))).slice(0, 12);
+  const kept: string[] = [];
+  for (const t of cleaned) {
+    const payload = { query: t, top_k: 1 };
+    const hit = await fetchJsonWithTimeout<unknown>(`${DEW_LIBRARY_URL}/search`, timeoutMs / 2);
+    // fallback with POST when GET-style helper can't send body
+    let ok = false;
+    if (Array.isArray(hit) && hit.length > 0) ok = true;
+    if (!ok) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs / 2);
+        const r = await fetch(`${DEW_LIBRARY_URL}/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (r.ok) {
+          const j = await r.json();
+          ok = Array.isArray(j) && j.length > 0;
+        }
+      } catch {}
+    }
+    if (ok) kept.push(t);
+  }
+  return kept;
+}
 type Period = '1D'|'1W'|'1M'|'1Q'|'1Y';
 
 function windowFrom(period: Period) {
@@ -460,8 +495,14 @@ const dayReturn = (sym: string, bars: Bar[]) => {
       ...dewXCache.map((x) => x.title),
     ].slice(0, 40);
 
-    dewPolymarket = await fetchPolymarketIdeas(DEW_POLYMARKET_LIMIT, DEW_FETCH_TIMEOUT_POLYMARKET_MS, signalTerms);
-    ingestStatus.polymarket = dewPolymarket.length > 0;
+    const gatedTerms = await libraryGateSignalTerms(signalTerms, DEW_FETCH_TIMEOUT_POLYMARKET_MS);
+    if (gatedTerms.length < DEW_LIB_GATE_MIN) {
+      dewPolymarket = [];
+      ingestStatus.polymarket = false;
+    } else {
+      dewPolymarket = await fetchPolymarketIdeas(DEW_POLYMARKET_LIMIT, DEW_FETCH_TIMEOUT_POLYMARKET_MS, gatedTerms);
+      ingestStatus.polymarket = dewPolymarket.length > 0;
+    }
   } catch {
     dewNews = [];
     dewTimeline = [];

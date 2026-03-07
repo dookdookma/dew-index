@@ -1,3 +1,5 @@
+import { readFile } from 'fs/promises';
+import path from 'path';
 ﻿import { libraryAdjudicateForTraderAgent } from './dewLibraryModule';
 type Row = { symbol: string; sleeve: string; w: number; r1: number | null; rW: number | null };
 type SleeveRet = { r1: number | null; rW: number | null };
@@ -22,6 +24,18 @@ type PolymarketItem = {
   category?: string;
 };
 
+
+
+async function loadLensAxioms(): Promise<Record<string, unknown>> {
+  try {
+    const p = path.join(process.cwd(), 'cache', 'lens_axioms.json');
+    const raw = await readFile(p, 'utf-8');
+    const j = JSON.parse(raw);
+    return j?.axioms || {};
+  } catch {
+    return {};
+  }
+}
 export async function dewLine({
   snapshot,
   news,
@@ -73,6 +87,8 @@ export async function dewLine({
     maxCitationsPerSignal: 1,
     fetchChunkText: false,
   });
+
+    const lensAxioms = await loadLensAxioms();
 
   const prompt = `
 You are DEW Line, the synthesis engine for the DEW Index.
@@ -144,6 +160,7 @@ Timeline Cache: ${JSON.stringify(timelineCache.slice(0, 240))}
 Polymarket (live): ${JSON.stringify(polymarket.slice(0, 150))}
 DEW Library Adjudication: ${JSON.stringify(dewLibrary)}
 DEW Library Errors (if any): ${JSON.stringify(dewLibrary.errors || [])}
+Lens Axiom Layer: ${JSON.stringify(lensAxioms)}
 
 Output format (strict, exact order):
 DEW LINE NOTE
@@ -174,6 +191,10 @@ Confidence Regime: Risk-On | Neutral | Risk-Off
   - Direction: bullish | bearish | mixed
   - 1-2 sentence practical interpretation
   - Relevant theorist lens in plain language
+
+3b. Structural Inevitability Map
+- For each high-confidence rail, state the likely terminal failure mode (inevitability) implied by library-grounded theory.
+- Prefer physics-floor constraints over surface-event proxies.
 
 4. Timeline Intelligence
 4a. Live Timeline (24h)
@@ -248,7 +269,7 @@ Formatting constraints:
 `;
 
   try {
-    const r = await client.responses.create({ model: 'gpt-5.2-2025-12-11', input: prompt });
+    const r = await client.responses.create({ model: 'gpt-5.4-2026-03-05', input: prompt });
     return r.output_text ?? 'DEW Line unavailable.';
   } catch {
     return 'DEW Line unavailable.';

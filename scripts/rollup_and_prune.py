@@ -45,9 +45,20 @@ def build_weekly(ref: dt.date | None = None):
     source_days = [d.isoformat() for d, _ in days]
     sig_states = Counter()
     fail_modes = Counter()
+    lens_counts = Counter()
+    pair_counts = Counter()
     for _, row in days:
+        lenses = []
         for s in row.get("signals", []):
             sig_states[s.get("state", "unknown")] += 1
+            lens = str(s.get("lens", "")).strip()
+            if lens:
+                lens_counts[lens] += 1
+                lenses.append(lens)
+        lenses = sorted(set(lenses))
+        for i in range(len(lenses)):
+            for j in range(i + 1, len(lenses)):
+                pair_counts[(lenses[i], lenses[j])] += 1
         rej = row.get("markets", {}).get("rejections", {})
         for k, v in rej.items():
             fail_modes[k] += int(v or 0)
@@ -56,8 +67,10 @@ def build_weekly(ref: dt.date | None = None):
         "week": prefix,
         "generatedAt": dt.datetime.utcnow().isoformat() + "Z",
         "sourceDays": source_days,
-        "gravityCenter": "",
-        "emergentCollisions": [],
+        "gravityCenter": (lens_counts.most_common(1)[0][0] if lens_counts else ""),
+        "emergentCollisions": [
+            {"lenses": [a,b], "count": c} for (a,b), c in pair_counts.most_common(5)
+        ],
         "nextBottleneck": "",
         "signalStats": {
             "confirmedStructural": sig_states.get("confirmed_structural", 0),
