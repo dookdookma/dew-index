@@ -149,15 +149,15 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number, signalTerm
     const question = typeof r.question === 'string' ? r.question.trim() : '';
     const slug = typeof r.slug === 'string' ? r.slug.trim() : '';
     if (!question || !slug) continue;
-    const maxSideUniverse = Math.max((yesProb ?? 0), (noProb ?? 0));
-    const universeExcluded = DEW_POLY_EXCLUDE_REGEX.test(question) || maxSideUniverse > DEW_POLY_UNIVERSE_MAX_SIDE;
-    if (universeExcluded) continue;
     const outcomes = parseJsonArrayStrings(r.outcomes).map((x) => x.toLowerCase());
     const prices = parseJsonArrayStrings(r.outcomePrices).map((x) => Number(x));
     const yesIdx = outcomes.indexOf('yes');
     const noIdx = outcomes.indexOf('no');
     const yesProb = yesIdx >= 0 && Number.isFinite(prices[yesIdx]) ? prices[yesIdx] : undefined;
     const noProb = noIdx >= 0 && Number.isFinite(prices[noIdx]) ? prices[noIdx] : undefined;
+    const maxSideUniverse = Math.max((yesProb ?? 0), (noProb ?? 0));
+    const universeExcluded = DEW_POLY_EXCLUDE_REGEX.test(question) || maxSideUniverse > DEW_POLY_UNIVERSE_MAX_SIDE;
+    if (universeExcluded) continue;
 
     out.push({
       question,

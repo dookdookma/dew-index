@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
     requestedLimit: limit,
     timeoutMs,
     upstreamRawCount: fetched.rawCount,
-    universeExcludedCount,
+    universeExcludedCount: fetched.universeExcludedCount,
     retainedCount: fetched.ideas.length,
     passAllCount: enriched.filter((x) => x.passAll).length,
     filterCounts: {
@@ -197,3 +197,4 @@ export async function GET(req: NextRequest) {
     sampleTopByVolume24h: enriched.slice(0, 100),
   });
 }
+
