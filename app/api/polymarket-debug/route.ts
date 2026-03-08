@@ -104,14 +104,14 @@ export async function GET(req: NextRequest) {
   const limit = Math.max(10, Math.min(240, Number(url.searchParams.get('limit') ?? process.env.DEW_POLYMARKET_LIMIT ?? '150')));
   const timeoutMs = Math.max(2000, Math.min(30000, Number(url.searchParams.get('timeoutMs') ?? process.env.DEW_FETCH_TIMEOUT_POLYMARKET_MS ?? '9000')));
 
-  const asymMax = Number(url.searchParams.get('asymMax') ?? '0.85');
-  const horizonDays = Number(url.searchParams.get('horizonDays') ?? '90');
-  const surgeMin = Number(url.searchParams.get('surgeMin') ?? '0.10');
-  const surgeMinLong = Number(url.searchParams.get('surgeMinLong') ?? '0.20');
+  const asymMax = Number(url.searchParams.get('asymMax') ?? '0.92');
+  const horizonDays = Number(url.searchParams.get('horizonDays') ?? '180');
+  const surgeMin = Number(url.searchParams.get('surgeMin') ?? '0.04');
+  const surgeMinLong = Number(url.searchParams.get('surgeMinLong') ?? '0.10');
   const longDays = Number(url.searchParams.get('longDays') ?? '90');
   const spreadSumMax = Number(url.searchParams.get('spreadSumMax') ?? '1.25');
-  const crowdPrice = Number(url.searchParams.get('crowdPrice') ?? '0.85');
-  const crowdSurge = Number(url.searchParams.get('crowdSurge') ?? '0.25');
+  const crowdPrice = Number(url.searchParams.get('crowdPrice') ?? '0.92');
+  const crowdSurge = Number(url.searchParams.get('crowdSurge') ?? '0.30');
 
   const fetched = await fetchPolymarketIdeas(limit, timeoutMs);
   const enriched = fetched.ideas.map((m) => {

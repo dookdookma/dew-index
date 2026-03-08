@@ -34,14 +34,14 @@ const DEW_FETCH_TIMEOUT_TIMELINE_MS = Math.max(2000, Math.min(45000, Number(proc
 const DEW_FETCH_TIMEOUT_POLYMARKET_MS = Math.max(2000, Math.min(30000, Number(process.env.DEW_FETCH_TIMEOUT_POLYMARKET_MS ?? '9000')));
 const DEW_LIBRARY_URL = (process.env.DEW_LIBRARY_URL || 'https://dew-index-production.up.railway.app').replace(/\/$/, '');
 const DEW_LIB_GATE_MIN = Math.max(1, Math.min(6, Number(process.env.DEW_LIB_GATE_MIN ?? '2')));
-const DEW_POLY_ASYM_MAX = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_ASYM_MAX ?? '0.85')));
-const DEW_POLY_HORIZON_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POLY_HORIZON_DAYS ?? '90')));
-const DEW_POLY_SURGE_MIN = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN ?? '0.10')));
-const DEW_POLY_SURGE_MIN_LONG = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN_LONG ?? '0.20')));
+const DEW_POLY_ASYM_MAX = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_ASYM_MAX ?? '0.92')));
+const DEW_POLY_HORIZON_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POLY_HORIZON_DAYS ?? '180')));
+const DEW_POLY_SURGE_MIN = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN ?? '0.04')));
+const DEW_POLY_SURGE_MIN_LONG = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_SURGE_MIN_LONG ?? '0.10')));
 const DEW_POLY_LONG_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POLY_LONG_DAYS ?? '90')));
 const DEW_POLY_SPREAD_SUM_MAX = Math.max(1, Math.min(2, Number(process.env.DEW_POLY_SPREAD_SUM_MAX ?? '1.25')));
-const DEW_POLY_CROWD_PRICE = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_CROWD_PRICE ?? '0.85')));
-const DEW_POLY_CROWD_SURGE = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_CROWD_SURGE ?? '0.25')));
+const DEW_POLY_CROWD_PRICE = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_CROWD_PRICE ?? '0.92')));
+const DEW_POLY_CROWD_SURGE = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_CROWD_SURGE ?? '0.30')));
 
 function pickHeadlines(
   newsByCategory: Record<string, DewNews[] | undefined> | null | undefined
