@@ -3,6 +3,8 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const DEW_POLY_EXCLUDE_REGEX = /(nba finals|stanley cup|fifa world cup|la liga|premier league|champions league|masters tournament|democratic presidential nomination|republican presidential nomination|win the 2028 us presidential election)/i;
+
 type PM = {
   question: string;
   slug: string;
@@ -50,19 +52,29 @@ async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number): Promise<
   }
 }
 
-async function fetchPolymarketIdeas(limit: number, timeoutMs: number): Promise<{ rawCount: number; ideas: PM[] }> {
+async function fetchPolymarketIdeas(limit: number, timeoutMs: number, universeMaxSide: number): Promise<{ rawCount: number; ideas: PM[]; universeExcludedCount: number }> {
   const upstreamLimit = Math.max(10, Math.min(500, limit * 3));
   const url = `https://gamma-api.polymarket.com/markets?limit=${upstreamLimit}&active=true&closed=false`;
   const raw = await fetchJsonWithTimeout<unknown>(url, timeoutMs);
-  if (!raw) return { rawCount: 0, ideas: [] };
+  if (!raw) return { rawCount: 0, ideas: [], universeExcludedCount: 0 };
   const arr = Array.isArray(raw) ? raw : [];
   const out: PM[] = [];
+  let universeExcludedCount = 0;
 
   for (const row of arr) {
     const r = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
     const question = typeof r.question === 'string' ? r.question.trim() : '';
     const slug = typeof r.slug === 'string' ? r.slug.trim() : '';
     if (!question || !slug) continue;
+    const outcomesPeek = parseJsonArrayStrings((r as any).outcomes).map((x) => x.toLowerCase());
+    const pricesPeek = parseJsonArrayStrings((r as any).outcomePrices).map((x) => Number(x));
+    const yesPeek = outcomesPeek.indexOf('yes');
+    const noPeek = outcomesPeek.indexOf('no');
+    const yv = yesPeek >= 0 && Number.isFinite(pricesPeek[yesPeek]) ? pricesPeek[yesPeek] : undefined;
+    const nv = noPeek >= 0 && Number.isFinite(pricesPeek[noPeek]) ? pricesPeek[noPeek] : undefined;
+    const maxSideUniverse = Math.max((yv ?? 0), (nv ?? 0));
+    const universeExcluded = DEW_POLY_EXCLUDE_REGEX.test(question) || maxSideUniverse > universeMaxSide;
+    if (universeExcluded) { universeExcludedCount += 1; continue; }
 
     const outcomes = parseJsonArrayStrings(r.outcomes).map((x) => x.toLowerCase());
     const prices = parseJsonArrayStrings(r.outcomePrices).map((x) => Number(x));
@@ -89,7 +101,7 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number): Promise<{
     .sort((a, b) => (b.volume24hr ?? b.volume ?? 0) - (a.volume24hr ?? a.volume ?? 0))
     .slice(0, limit);
 
-  return { rawCount: arr.length, ideas };
+  return { rawCount: arr.length, ideas, universeExcludedCount };
 }
 
 function daysTo(endDate?: string): number | null {
@@ -112,8 +124,9 @@ export async function GET(req: NextRequest) {
   const spreadSumMax = Number(url.searchParams.get('spreadSumMax') ?? '1.25');
   const crowdPrice = Number(url.searchParams.get('crowdPrice') ?? '0.92');
   const crowdSurge = Number(url.searchParams.get('crowdSurge') ?? '0.30');
+  const universeMaxSide = Number(url.searchParams.get('universeMaxSide') ?? '0.97');
 
-  const fetched = await fetchPolymarketIdeas(limit, timeoutMs);
+  const fetched = await fetchPolymarketIdeas(limit, timeoutMs, universeMaxSide);
   const enriched = fetched.ideas.map((m) => {
     const hasYesNo = typeof m.yesProb === 'number' && Number.isFinite(m.yesProb) && typeof m.noProb === 'number' && Number.isFinite(m.noProb);
     const hasV24 = typeof m.volume24hr === 'number' && Number.isFinite(m.volume24hr);
@@ -161,6 +174,7 @@ export async function GET(req: NextRequest) {
     requestedLimit: limit,
     timeoutMs,
     upstreamRawCount: fetched.rawCount,
+    universeExcludedCount,
     retainedCount: fetched.ideas.length,
     passAllCount: enriched.filter((x) => x.passAll).length,
     filterCounts: {
@@ -175,7 +189,7 @@ export async function GET(req: NextRequest) {
       spreadLiquidityFail: enriched.filter((x) => x.completeness.complete && !x.filters.spreadLiquidity).length,
       mimeticTrapFail: enriched.filter((x) => x.completeness.complete && !x.filters.girardMimeticTrap).length,
     },
-    thresholds: { asymMax, horizonDays, surgeMin, surgeMinLong, longDays, spreadSumMax, crowdPrice, crowdSurge },
+    thresholds: { asymMax, horizonDays, surgeMin, surgeMinLong, longDays, spreadSumMax, crowdPrice, crowdSurge, universeMaxSide },
   };
 
   return NextResponse.json({

@@ -42,6 +42,8 @@ const DEW_POLY_LONG_DAYS = Math.max(1, Math.min(3650, Number(process.env.DEW_POL
 const DEW_POLY_SPREAD_SUM_MAX = Math.max(1, Math.min(2, Number(process.env.DEW_POLY_SPREAD_SUM_MAX ?? '1.25')));
 const DEW_POLY_CROWD_PRICE = Math.max(0.5, Math.min(0.99, Number(process.env.DEW_POLY_CROWD_PRICE ?? '0.92')));
 const DEW_POLY_CROWD_SURGE = Math.max(0, Math.min(1, Number(process.env.DEW_POLY_CROWD_SURGE ?? '0.30')));
+const DEW_POLY_UNIVERSE_MAX_SIDE = Math.max(0.5, Math.min(1, Number(process.env.DEW_POLY_UNIVERSE_MAX_SIDE ?? '0.97')));
+const DEW_POLY_EXCLUDE_REGEX = /(nba finals|stanley cup|fifa world cup|la liga|premier league|champions league|masters tournament|democratic presidential nomination|republican presidential nomination|win the 2028 us presidential election)/i;
 
 function pickHeadlines(
   newsByCategory: Record<string, DewNews[] | undefined> | null | undefined
@@ -147,6 +149,9 @@ async function fetchPolymarketIdeas(limit: number, timeoutMs: number, signalTerm
     const question = typeof r.question === 'string' ? r.question.trim() : '';
     const slug = typeof r.slug === 'string' ? r.slug.trim() : '';
     if (!question || !slug) continue;
+    const maxSideUniverse = Math.max((yesProb ?? 0), (noProb ?? 0));
+    const universeExcluded = DEW_POLY_EXCLUDE_REGEX.test(question) || maxSideUniverse > DEW_POLY_UNIVERSE_MAX_SIDE;
+    if (universeExcluded) continue;
     const outcomes = parseJsonArrayStrings(r.outcomes).map((x) => x.toLowerCase());
     const prices = parseJsonArrayStrings(r.outcomePrices).map((x) => Number(x));
     const yesIdx = outcomes.indexOf('yes');
