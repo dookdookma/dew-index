@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/kv';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -264,7 +264,7 @@ type Period = '1D'|'1W'|'1M'|'1Q'|'1Y';
 function windowFrom(period: Period) {
   const to = dayjs().utc().format('YYYY-MM-DD');
   let from = dayjs().utc();
-  if (period === '1D') from = from.subtract(7, 'day'); // ensure ≥2 bars exist
+  if (period === '1D') from = from.subtract(7, 'day'); // ensure â‰¥2 bars exist
   if (period === '1W') from = from.subtract(7, 'day');
   if (period === '1M') from = from.subtract(1, 'month');
   if (period === '1Q') from = from.subtract(3, 'month');
@@ -382,7 +382,7 @@ const dayReturn = (sym: string, bars: Bar[]) => {
   const ok = (x: number | null | undefined) => typeof x === 'number' && Number.isFinite(x) && x > 0;
   if (s && ok(s.prevClose)) {
     if (ok(s.minuteClose)) return s.minuteClose! / s.prevClose! - 1;
-    if (ok(s.lastPrice))   return s.lastPrice!   / s.prevClose! - 1;   // ← allow after-hours
+    if (ok(s.lastPrice))   return s.lastPrice!   / s.prevClose! - 1;   // â† allow after-hours
     if (ok(s.dailyClose))  return s.dailyClose!  / s.prevClose! - 1;
   }
   // fallback: last two bars
@@ -429,7 +429,7 @@ const dayReturn = (sym: string, bars: Bar[]) => {
     diagnostics.weightsSum = 1;
   }
 
-  const rowsNonZero = rows.filter(r => (r.w ?? 0) > 0);
+  const rowsNonZero = rows.filter(r => ((r.w ?? 0) * 100) >= 0.005);
 
   const aggAll = (key: 'r1' | 'rW') => {
     const valid = rowsNonZero.filter(r => r[key] != null && r.w > 0);
@@ -585,4 +585,5 @@ const dayReturn = (sym: string, bars: Bar[]) => {
     },
   });
 }
+
 

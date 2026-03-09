@@ -1174,7 +1174,7 @@ export default function Home() {
 
   // rows
   const rowsSorted = useMemo(() => {
-  const rows: Row[] = Array.isArray(data?.snapshot?.rows) ? data!.snapshot!.rows.filter((r) => (r.w ?? 0) > 0) : [];
+  const rows: Row[] = Array.isArray(data?.snapshot?.rows) ? data!.snapshot!.rows.filter((r) => ((r.w ?? 0) * 100) >= 0.005) : [];
 
   // active key: in 1D we force 'r1' regardless of header state
   const activeKey: SortKey = period === '1D' ? 'r1' : sortKey; 
@@ -1500,7 +1500,7 @@ export default function Home() {
 
           <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--muted2)' }}>
             <div><strong>Portfolio:</strong> {fmtUsd(data?.snapshot?.account?.portfolioValue ?? null)}</div>
-            <div><strong>Cash:</strong> {fmtUsd(data?.snapshot?.account?.cash ?? null)}</div>
+            <div><strong>Cash (margin-adjusted):</strong> {fmtUsd(data?.snapshot?.account?.cash ?? null)}</div>
           </div>
 
           <div style={{ maxHeight: '100%', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
@@ -1664,5 +1664,6 @@ export default function Home() {
     </main>
   );
 }
+
 
 
