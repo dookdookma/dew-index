@@ -1,4 +1,4 @@
-// app/page.tsx
+﻿// app/page.tsx
 'use client';
 
 import Image from 'next/image';
@@ -1664,4 +1664,5 @@ export default function Home() {
     </main>
   );
 }
+
 
