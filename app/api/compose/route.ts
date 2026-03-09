@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 
-import { buildUniverse, fetchDailyBars, fetchSnapshots, type Bar, fetchLatest, type LatestMap } from '@/lib/alpaca';
+import { buildUniverse, fetchDailyBars, fetchSnapshots, type Bar, fetchLatest, type LatestMap, getAlpacaAccountValues } from '@/lib/alpaca';
 import { SLEEVE_MAP } from 'data/mappings';
 
 export const runtime = 'nodejs';
@@ -429,25 +429,31 @@ const dayReturn = (sym: string, bars: Bar[]) => {
     diagnostics.weightsSum = 1;
   }
 
+  const rowsNonZero = rows.filter(r => (r.w ?? 0) > 0);
+
   const aggAll = (key: 'r1' | 'rW') => {
-    const valid = rows.filter(r => r[key] != null && r.w > 0);
+    const valid = rowsNonZero.filter(r => r[key] != null && r.w > 0);
     if (!valid.length) return 0;
     let s = 0, w = 0;
     for (const r of valid) { s += (r[key] as number) * r.w; w += r.w; }
     return w > 0 ? s / w : 0;
   };
   const aggSleeve = (key: 'r1' | 'rW', s: 'Core' | 'Satellite') => {
-    const valid = rows.filter(r => r.sleeve === s && r[key] != null && r.w > 0);
+    const valid = rowsNonZero.filter(r => r.sleeve === s && r[key] != null && r.w > 0);
     if (!valid.length) return 0;
     let num = 0, den = 0;
     for (const r of valid) { num += (r[key] as number) * r.w; den += r.w; }
     return den > 0 ? num / den : 0;
   };
 
+  let accountValues: { portfolioValue: number; cash: number; equity?: number; buyingPower?: number } | null = null;
+  try { accountValues = await getAlpacaAccountValues(); } catch {}
+
   const snapshot = {
     window: win,
-    rows,
+    rows: rowsNonZero,
     index: { r1: aggAll('r1'), rW: aggAll('rW') },
+    account: accountValues ?? { portfolioValue: 0, cash: 0 },
     sleeves: {
       Core: { r1: aggSleeve('r1', 'Core'), rW: aggSleeve('rW', 'Core') },
       Satellite: { r1: aggSleeve('r1', 'Satellite'), rW: aggSleeve('rW', 'Satellite') },

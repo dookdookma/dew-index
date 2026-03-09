@@ -25,6 +25,26 @@ export type SnapshotsMap = Record<string, Snapshot>;
 
 export type LatestMap = Record<string, { tradeT?: string|null; quoteT?: string|null }>;
 export type Position = { symbol:string; qty:number; mv:number };
+export type AccountValues = {
+  portfolioValue: number;
+  cash: number;
+  equity?: number;
+  buyingPower?: number;
+};
+
+export async function getAlpacaAccountValues(): Promise<AccountValues> {
+  const r = await fetch(`${TRADE_BASE}/account`, { headers: HDRS(), cache:'no-store' });
+  if (!r.ok) throw new Error(`account ${r.status}`);
+  const j = await r.json() as Record<string, unknown>;
+  const n = (v: unknown) => { const x = Number(v ?? 0); return Number.isFinite(x) ? x : 0; };
+  return {
+    portfolioValue: n(j.portfolio_value),
+    cash: n(j.cash),
+    equity: n(j.equity),
+    buyingPower: n(j.buying_power),
+  };
+}
+
 const isRec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
 
 // ---------- Positions (market-value weights) ----------

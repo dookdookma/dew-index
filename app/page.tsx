@@ -12,6 +12,7 @@ type Row = { symbol: string; sleeve?: string; w: number; r1: number | null; rW: 
 type Snapshot = {
   window: { from: string; to: string };
   rows: Row[];
+  account?: { portfolioValue: number; cash: number; equity?: number; buyingPower?: number };
   index: { r1: number; rW: number };
   sleeves: { Core: { r1: number; rW: number }; Satellite: { r1: number; rW: number } };
 };
@@ -98,6 +99,7 @@ const makeBuckets = () => {
 const fmtPct = (x: number | null | undefined) => (x == null ? '-' : `${(x * 100).toFixed(2)}%`);
 const colorFor = (x: number | null | undefined) =>
   x == null ? 'var(--muted)' : x > 0 ? 'var(--pos)' : x < 0 ? 'var(--neg)' : 'var(--muted)';
+const fmtUsd = (x?: number | null) => (x == null ? '-' : `$${Number(x).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
 const ageLabel = (iso?: string) => {
   if (!iso) return '-';
   const ms = Date.now() - Date.parse(iso);
@@ -1172,7 +1174,7 @@ export default function Home() {
 
   // rows
   const rowsSorted = useMemo(() => {
-  const rows: Row[] = Array.isArray(data?.snapshot?.rows) ? data!.snapshot!.rows : [];
+  const rows: Row[] = Array.isArray(data?.snapshot?.rows) ? data!.snapshot!.rows.filter((r) => (r.w ?? 0) > 0) : [];
 
   // active key: in 1D we force 'r1' regardless of header state
   const activeKey: SortKey = period === '1D' ? 'r1' : sortKey; 
@@ -1494,6 +1496,11 @@ export default function Home() {
             <StatCard title="Index"     day={data?.snapshot?.index?.r1 ?? 0}                     win={data?.snapshot?.index?.rW ?? 0}                     hideWindow={period==='1D'} />
             <StatCard title="Core"      day={data?.snapshot?.sleeves?.Core?.r1 ?? 0}             win={data?.snapshot?.sleeves?.Core?.rW ?? 0}             hideWindow={period==='1D'} />
             <StatCard title="Satellite" day={data?.snapshot?.sleeves?.Satellite?.r1 ?? 0}        win={data?.snapshot?.sleeves?.Satellite?.rW ?? 0}        hideWindow={period==='1D'} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 16, marginBottom: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--muted2)' }}>
+            <div><strong>Portfolio:</strong> {fmtUsd(data?.snapshot?.account?.portfolioValue ?? null)}</div>
+            <div><strong>Cash:</strong> {fmtUsd(data?.snapshot?.account?.cash ?? null)}</div>
           </div>
 
           <div style={{ maxHeight: '100%', overflow: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
